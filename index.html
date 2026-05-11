@@ -776,12 +776,23 @@
     }
 
     /* v1.3.0 persistent datasets, compare mode, bubble heatmap */
-    .stored-datasets-panel { margin-top: 14px; border:1px solid rgba(126,174,230,.18); border-radius:12px; background:linear-gradient(150deg, rgba(10,24,40,.92), rgba(7,17,29,.90)); padding:14px; box-shadow:0 18px 42px rgba(0,0,0,.26); }
+    .stored-datasets-panel { margin-top: 14px; border:1px solid rgba(126,174,230,.16); border-radius:12px; background:linear-gradient(150deg, rgba(10,24,40,.88), rgba(7,17,29,.86)); padding:12px; box-shadow:0 14px 34px rgba(0,0,0,.22); }
     .stored-datasets-list { display:grid; gap:10px; margin-top:10px; }
-    .stored-dataset-card { display:grid; grid-template-columns: 1fr auto; gap:10px; align-items:center; padding:10px 12px; border:1px solid rgba(126,174,230,.16); background:rgba(7,18,31,.72); border-radius:10px; }
-    .stored-dataset-card strong { display:block; color:#f5f8ff; }
-    .stored-dataset-card .micro { margin-top:2px; }
-    .stored-dataset-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+    .stored-dataset-card { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:start; padding:10px; border:1px solid rgba(126,174,230,.14); background:rgba(7,18,31,.62); border-radius:10px; }
+    .stored-dataset-main { min-width:0; }
+    .stored-dataset-main-title { display:flex; align-items:center; gap:6px; margin-bottom:2px; }
+    .stored-dataset-main-title strong { display:block; color:#f5f8ff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .stored-dataset-subtitle { color:#b2c5dd; font-size:.73rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .stored-dataset-metrics { display:flex; flex-wrap:wrap; gap:4px 10px; margin-top:6px; font-size:.72rem; color:#c7d7ea; }
+    .stored-dataset-metrics span { white-space:nowrap; }
+    .stored-dataset-actions { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; align-items:flex-start; }
+    .stored-dataset-actions .btn { padding:6px 10px; font-size:.72rem; }
+    .stored-dataset-details-toggle { margin-top:8px; border:1px solid rgba(126,174,230,.2); background:rgba(255,255,255,.03); color:#c8d8ec; border-radius:999px; padding:4px 8px; font-size:.68rem; line-height:1.1; cursor:pointer; }
+    .stored-dataset-details { display:none; margin-top:8px; border-top:1px dashed rgba(126,174,230,.18); padding-top:8px; font-size:.7rem; color:#adc2db; }
+    .stored-dataset-card.expanded .stored-dataset-details { display:block; }
+    .stored-dataset-details-row { display:flex; gap:8px; margin-top:4px; min-width:0; }
+    .stored-dataset-details-row b { color:#dce8f8; font-weight:600; min-width:74px; }
+    .stored-dataset-details-row span { min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .stored-dataset-empty { padding:12px; border:1px dashed rgba(126,174,230,.18); border-radius:10px; color:#a9bbd3; text-align:center; }
     .compare-modal { position:fixed; inset:0; background:rgba(4,10,18,.72); backdrop-filter: blur(8px); display:none; align-items:center; justify-content:center; padding:20px; z-index:80; }
     .compare-modal.open { display:flex; }
@@ -817,7 +828,7 @@
     .hm-axis-caption .hm-legend { display:flex; align-items:center; gap:8px; }
     .hm-axis-caption .hm-legend .dot { width:12px; height:12px; border-radius:50%; display:inline-block; }
     .intake-meta-strip { margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; }
-    .intake-meta-pill { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); color:#dce8f8; border-radius:999px; padding:6px 10px; font-size:.75rem; }
+    .intake-meta-pill { background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07); color:#c7d7ea; border-radius:999px; padding:4px 8px; font-size:.69rem; }
     @media (max-width: 980px) {
       .compare-grid { grid-template-columns:1fr; }
       .stored-dataset-card { grid-template-columns:1fr; }
@@ -967,8 +978,8 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
 
         <section class="stored-datasets-panel" id="storedDatasetsPanel">
           <div class="chart-head"><h3 style="margin:0;">Recent datasets</h3><span class="micro">The last 3 validated datasets are saved automatically in this browser.</span></div>
-          <div class="intake-meta-strip"><span class="intake-meta-pill">Auto-save: ON</span><span class="intake-meta-pill">Retention: last 3 datasets</span><span class="intake-meta-pill">Compare-ready</span></div>
-          <div id="storedDatasetsList" class="stored-datasets-list"><div class="stored-dataset-empty">No saved datasets yet. Run one analysis to create your first reusable snapshot.</div></div>
+          <div class="intake-meta-strip"><span class="intake-meta-pill">Auto-save: ON</span><span class="intake-meta-pill">Last 3 datasets</span><span class="intake-meta-pill">Compare-ready</span></div>
+          <div id="storedDatasetsList" class="stored-datasets-list"><div class="stored-dataset-empty">No saved datasets yet. Run analysis once to enable quick reload.</div></div>
         </section>
 
         <div class="intake-actions">
@@ -1480,25 +1491,45 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
       const latestBtn = document.getElementById('loadLatestDatasetBtn');
       if (latestBtn) { latestBtn.disabled = !datasets.length; latestBtn.title = datasets.length ? 'Load newest saved snapshot' : 'No saved dataset yet'; }
       if (!datasets.length) {
-        host.innerHTML = '<div class="stored-dataset-empty">No saved datasets yet. Run one analysis to create your first reusable snapshot.</div>';
+        host.innerHTML = '<div class="stored-dataset-empty">No saved datasets yet. Run analysis once to enable quick reload.</div>';
         syncCompareSelectors();
         return;
       }
       host.innerHTML = datasets.map((entry, index) => `
-        <article class="stored-dataset-card">
-          <div>
-            <strong>${esc(formatSnapshotLabel(entry))}${index === 0 ? ' <span class="badge ok" style="vertical-align:middle;">Latest</span>' : ''}</strong>
-            <div class="micro">${esc(formatSnapshotMeta(entry))}</div>
-            <div class="micro">Date range: ${esc(entry.startDate || 'n/a')} → ${esc(entry.endDate || 'n/a')}</div>
-            <div class="micro">Files: ${esc([entry.files?.errors, entry.files?.availability, entry.files?.volume].filter(Boolean).join(' • ') || 'Saved snapshot')}</div>
-            <div class="micro">Rows: Errors ${Number(entry.counts?.normalizedErrors || 0).toLocaleString()} · Availability ${Number(entry.counts?.normalizedAvailability || 0).toLocaleString()} · Volume ${Number(entry.counts?.normalizedVolume || 0).toLocaleString()} · Merged ${Number(entry.counts?.mergedRows || entry.counts?.events || 0).toLocaleString()}</div>
-            <div class="micro">Validation: ${hasValidSnapshotPayload(entry) ? 'Ready' : 'Invalid snapshot'}</div>
+        <article class="stored-dataset-card" data-snapshot-id="${esc(entry.id)}">
+          <div class="stored-dataset-main">
+            <div class="stored-dataset-main-title">
+              <strong>${esc((entry.startDate || 'n/a') + ' → ' + (entry.endDate || 'n/a'))}</strong>${index === 0 ? '<span class="badge ok" style="vertical-align:middle;">Latest</span>' : ''}
+            </div>
+            <div class="stored-dataset-subtitle">${esc((entry.modeLabel || 'Full mode') + ' · Errors + Availability + Print Volume')}</div>
+            <div class="stored-dataset-metrics">
+              <span>Events: ${Number(entry.counts?.events || entry.counts?.mergedRows || 0).toLocaleString()}</span>
+              <span>Sources: ${[entry.files?.errors, entry.files?.availability, entry.files?.volume].filter(Boolean).length}/3</span>
+              <span>Saved: ${esc(formatSnapshotLabel(entry))}</span>
+              <span>Status: ${hasValidSnapshotPayload(entry) ? 'Ready' : 'Invalid'}</span>
+            </div>
+            <button class="stored-dataset-details-toggle" type="button" data-toggle-details="${esc(entry.id)}">Details</button>
+            <div class="stored-dataset-details" id="snapshot-details-${esc(entry.id)}">
+              <div class="stored-dataset-details-row"><b>Errors file</b><span>${esc(entry.files?.errors || 'n/a')}</span></div>
+              <div class="stored-dataset-details-row"><b>Avail file</b><span>${esc(entry.files?.availability || 'n/a')}</span></div>
+              <div class="stored-dataset-details-row"><b>Volume file</b><span>${esc(entry.files?.volume || 'n/a')}</span></div>
+              <div class="stored-dataset-details-row"><b>Rows</b><span>Errors ${Number(entry.counts?.normalizedErrors || 0).toLocaleString()} · Availability ${Number(entry.counts?.normalizedAvailability || 0).toLocaleString()} · Volume ${Number(entry.counts?.normalizedVolume || 0).toLocaleString()} · Merged ${Number(entry.counts?.mergedRows || entry.counts?.events || 0).toLocaleString()}</span></div>
+              <div class="stored-dataset-details-row"><b>Validation</b><span>${hasValidSnapshotPayload(entry) ? 'Ready' : 'Invalid snapshot'}</span></div>
+              <div class="stored-dataset-details-row"><b>Version</b><span>${esc(entry.version || 'n/a')}</span></div>
+              <div class="stored-dataset-details-row"><b>Saved at</b><span>${esc(entry.savedAt || 'n/a')}</span></div>
+            </div>
           </div>
           <div class="stored-dataset-actions">
             <button class="btn secondary" type="button" data-load-snapshot="${esc(entry.id)}">Load</button>
             <button class="btn secondary" type="button" data-compare-snapshot="${esc(entry.id)}">Compare</button>
           </div>
         </article>`).join('');
+      host.querySelectorAll('[data-toggle-details]').forEach(btn => btn.addEventListener('click', () => {
+        const card = btn.closest('.stored-dataset-card');
+        if (!card) return;
+        const expanded = card.classList.toggle('expanded');
+        btn.textContent = expanded ? 'Hide details' : 'Details';
+      }));
       host.querySelectorAll('[data-load-snapshot]').forEach(btn => btn.addEventListener('click', async () => {
         const snapshot = await getStoredDatasetById(btn.dataset.loadSnapshot);
         if (!snapshot) return;
