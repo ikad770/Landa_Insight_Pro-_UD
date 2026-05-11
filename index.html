@@ -973,6 +973,7 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
 
         <div class="intake-actions">
           <button id="clearBtn" class="btn secondary">Clear files</button>
+          <button id="loadLatestDatasetBtn" class="btn secondary">Load latest saved dataset</button>
           <button id="runBtn" class="btn primary" disabled>Run analysis</button>
         </div>
         <section id="intakeProgressCard" class="progress-card idle">
@@ -1323,6 +1324,20 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     if (snapshot.counts?.events != null) parts.push(`${Number(snapshot.counts.events || 0).toLocaleString()} merged events`);
     return parts.join(' • ');
   }
+
+  function hasValidSnapshotPayload(snapshot) {
+    const payload = snapshot?.payload || {};
+    const merged = payload.merged;
+    const required = [payload.normalized, merged, payload.kpis, payload.mode || snapshot?.mode];
+    if (required.some(v => v == null)) return false;
+    if (!Array.isArray(merged?.events) || !Array.isArray(merged?.mergedRows)) return false;
+    if (!merged?.sourceTables || !Array.isArray(merged.sourceTables.errorsAgg) || !Array.isArray(merged.sourceTables.availabilityAgg) || !Array.isArray(merged.sourceTables.volumeAgg)) return false;
+    return true;
+  }
+  function buildFileMeta(fileObj) {
+    if (!fileObj) return null;
+    return { name: fileObj.name || null, size: Number(fileObj.size || 0), lastModified: Number(fileObj.lastModified || 0) || null };
+  }
   function getRangeFromCurrentState() {
     const rows = STATE.merged?.events || [];
     const days = [...new Set((rows || []).map(r => String(r.day || '').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
@@ -1381,11 +1396,15 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     const all = await getStoredDatasetsDetailed();
     const extras = all.slice(DATASET_RETENTION);
     for (const entry of extras) {
-      await withDatasetStore('readwrite', store => new Promise((resolve, reject) => {
-        const req = store.delete(entry.id);
-        req.onsuccess = () => resolve(true);
-        req.onerror = () => reject(req.error || new Error('Failed to trim old dataset.'));
-      }));
+      try {
+        await withDatasetStore('readwrite', store => new Promise((resolve, reject) => {
+          const req = store.delete(entry.id);
+          req.onsuccess = () => resolve(true);
+          req.onerror = () => reject(req.error || new Error('Failed to trim old dataset.'));
+        }));
+      } catch (error) {
+        console.warn('[dataset-retention-warning]', entry?.id, error);
+      }
     }
     return getStoredDatasetsDetailed();
   }
@@ -1401,14 +1420,25 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
       endDate: range.end,
       mode: STATE.mode,
       appVersion: APP_VERSION,
+      createdAt: Date.now(),
       files: {
         errors: STATE.files.errors?.name || null,
         availability: STATE.files.availability?.name || null,
         availabilityDetails: STATE.files.availabilityDetails?.name || null,
         volume: STATE.files.volume?.name || null,
       },
+      fileMeta: {
+        errors: buildFileMeta(STATE.files.errors),
+        availability: buildFileMeta(STATE.files.availability),
+        availabilityDetails: buildFileMeta(STATE.files.availabilityDetails),
+        volume: buildFileMeta(STATE.files.volume),
+      },
       counts: {
         events: Number(STATE.merged?.events?.length || 0),
+        mergedRows: Number(STATE.merged?.mergedRows?.length || 0),
+        normalizedErrors: Number(STATE.normalized?.events?.length || 0),
+        normalizedAvailability: Number(STATE.normalized?.availability?.length || 0),
+        normalizedVolume: Number(STATE.normalized?.volume?.length || 0),
         errorsAgg: Number(STATE.merged?.sourceTables?.errorsAgg?.length || 0),
         availabilityAgg: Number(STATE.merged?.sourceTables?.availabilityAgg?.length || 0),
         volumeAgg: Number(STATE.merged?.sourceTables?.volumeAgg?.length || 0),
@@ -1424,6 +1454,7 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
         customerVolumeSort: STATE.customerVolumeSort,
         customerVolumeShowWaste: STATE.customerVolumeShowWaste,
         customerVolumeExpanded: STATE.customerVolumeExpanded,
+        executiveSummary: STATE.merged?.summary || null,
       }
     };
   }
@@ -1446,6 +1477,8 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     try {
       const datasets = await getStoredDatasetsDetailed();
       STATE.storedDatasets = datasets;
+      const latestBtn = document.getElementById('loadLatestDatasetBtn');
+      if (latestBtn) { latestBtn.disabled = !datasets.length; latestBtn.title = datasets.length ? 'Load newest saved snapshot' : 'No saved dataset yet'; }
       if (!datasets.length) {
         host.innerHTML = '<div class="stored-dataset-empty">No saved datasets yet. Run one analysis to create your first reusable snapshot.</div>';
         syncCompareSelectors();
@@ -1456,16 +1489,20 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
           <div>
             <strong>${esc(formatSnapshotLabel(entry))}${index === 0 ? ' <span class="badge ok" style="vertical-align:middle;">Latest</span>' : ''}</strong>
             <div class="micro">${esc(formatSnapshotMeta(entry))}</div>
+            <div class="micro">Date range: ${esc(entry.startDate || 'n/a')} → ${esc(entry.endDate || 'n/a')}</div>
             <div class="micro">Files: ${esc([entry.files?.errors, entry.files?.availability, entry.files?.volume].filter(Boolean).join(' • ') || 'Saved snapshot')}</div>
+            <div class="micro">Rows: Errors ${Number(entry.counts?.normalizedErrors || 0).toLocaleString()} · Availability ${Number(entry.counts?.normalizedAvailability || 0).toLocaleString()} · Volume ${Number(entry.counts?.normalizedVolume || 0).toLocaleString()} · Merged ${Number(entry.counts?.mergedRows || entry.counts?.events || 0).toLocaleString()}</div>
+            <div class="micro">Validation: ${hasValidSnapshotPayload(entry) ? 'Ready' : 'Invalid snapshot'}</div>
           </div>
           <div class="stored-dataset-actions">
-            <button class="btn secondary" type="button" data-open-snapshot="${esc(entry.id)}">Open</button>
+            <button class="btn secondary" type="button" data-load-snapshot="${esc(entry.id)}">Load</button>
             <button class="btn secondary" type="button" data-compare-snapshot="${esc(entry.id)}">Compare</button>
           </div>
         </article>`).join('');
-      host.querySelectorAll('[data-open-snapshot]').forEach(btn => btn.addEventListener('click', async () => {
-        const snapshot = await getStoredDatasetById(btn.dataset.openSnapshot);
+      host.querySelectorAll('[data-load-snapshot]').forEach(btn => btn.addEventListener('click', async () => {
+        const snapshot = await getStoredDatasetById(btn.dataset.loadSnapshot);
         if (!snapshot) return;
+    if (!hasValidSnapshotPayload(snapshot)) { setStatus('Saved dataset is invalid/corrupted. Please re-upload files.', 'error'); return; }
         clearCompareState(false);
         restoreDatasetSnapshot(snapshot);
         setStatus(`Loaded saved dataset: ${formatSnapshotLabel(snapshot)}.`, 'ok');
@@ -1544,6 +1581,7 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     if (summary) summary.textContent = current && baseline ? `Comparing ${formatSnapshotLabel(current)} against ${formatSnapshotLabel(baseline)}.` : 'Choose two saved datasets to compare KPI changes across the command center.';
   }
   function openCompareModal(preferredBaselineId = null) {
+    if ((STATE.storedDatasets || []).length < 2) { setStatus('Compare needs at least 2 saved datasets.', 'warning'); return; }
     syncCompareSelectors(preferredBaselineId);
     const modal = document.getElementById('compareModal');
     if (modal) modal.classList.add('open');
@@ -8288,6 +8326,15 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
 
     els.clearBtn.addEventListener('click', clearFiles);
     els.runBtn.addEventListener('click', runAnalysisFlow);
+    document.getElementById('loadLatestDatasetBtn')?.addEventListener('click', async () => {
+      const datasets = STATE.storedDatasets?.length ? STATE.storedDatasets : await getStoredDatasetsDetailed().catch(() => []);
+      const latest = datasets[0];
+      if (!latest) { setStatus('No saved dataset yet. Upload files and run analysis first.', 'info'); return; }
+      if (!hasValidSnapshotPayload(latest)) { setStatus('Latest saved dataset is invalid/corrupted. Please re-upload files.', 'error'); return; }
+      clearCompareState(false);
+      restoreDatasetSnapshot(latest);
+      setStatus(`Loaded saved dataset: ${formatSnapshotLabel(latest)}.`, 'ok');
+    });
     els.cancelRunBtn?.addEventListener('click', () => {
       if (!STATE.analysisRunning) return;
       markAnalysisCanceled('Canceled by user.');
@@ -8557,6 +8604,11 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
   }
 
   bind();
+  refreshStoredDatasetUI().then(() => {
+    const btn = document.getElementById('loadLatestDatasetBtn');
+    const hasData = (STATE.storedDatasets || []).length > 0;
+    if (btn) { btn.disabled = !hasData; btn.title = hasData ? "Load newest saved snapshot" : "No saved dataset yet"; }
+  }).catch(() => {});
 })();
 </script>
 </body>
