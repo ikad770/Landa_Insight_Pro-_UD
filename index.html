@@ -5634,6 +5634,18 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     return Number.isFinite(expandedLimit) && expandedLimit > 0 ? [...fullRows].slice(0, expandedLimit) : [...fullRows];
   }
 
+  function rankingAxisTitles(key, metric) {
+    if (key === 'subsystem') return { x: metric === 'downtime' ? 'Valid Duration' : 'Total Events', y: 'Subsystem' };
+    if (key === 'version') {
+      if (metric === 'downtime') return { x: 'Valid Duration', y: 'Version' };
+      if (metric === 'perPress') return { x: 'Events per Press', y: 'Version' };
+      return { x: 'Total Events', y: 'Version' };
+    }
+    if (key === 'alert') return { x: metric === 'downtime' ? 'Valid Duration' : 'Total Events', y: 'Error' };
+    if (key === 'press') return { x: metric === 'downtime' ? 'Valid Duration' : 'Total Events', y: 'Press' };
+    return { x: 'Value', y: 'Category' };
+  }
+
   
   function renderRankingChart(key, items) {
     const metric = STATE.metricByChart[key];
@@ -5677,7 +5689,8 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     const expandedLabels = expandedView.map(x => x.name);
     const expandedPayloads = expandedView.map(x => ({ entityKey: x.entityKey || x.name, displayLabel: x.displayLabel || x.name, sourceType: (key === 'version' && metric === 'perPress') ? 'versionPerPress' : (x.sourceType || 'errorsAgg'), metric, parentContext: { path: [], parentValue: 0 } }));
     const expandedData = expandedView.map(x => metric === 'events' ? (x.metrics?.events || x.events || 0) : metric === 'downtime' ? (x.metrics?.durationSeconds || x.totalDurationSeconds || x.downtime || 0) : metric === 'avgDuration' ? (x.metrics?.avgDuration || x.avgDuration || 0) : metric === 'perPress' ? (x.perPress || 0) : (x[metric] || 0));
-    CHART_EXPANDED_CONFIGS.set(`${key}Chart`, { type: 'bar', data: { labels: expandedLabels, datasets: [{ data: expandedData, backgroundColor: expandedView.map((row, i) => isPressImpactChart ? (row.impactColor || deriveImpactTier(row).color) : palette[i % palette.length]), borderRadius: 6 }] }, options: { ...baseOptions(key, expandedLabels, expandedPayloads), indexAxis: 'y' } });
+    const axisTitles = rankingAxisTitles(key, metric);
+    CHART_EXPANDED_CONFIGS.set(`${key}Chart`, { type: 'bar', data: { labels: expandedLabels, datasets: [{ data: expandedData, backgroundColor: expandedView.map((row, i) => isPressImpactChart ? (row.impactColor || deriveImpactTier(row).color) : palette[i % palette.length]), borderRadius: 6 }] }, options: { ...baseOptions(key, expandedLabels, expandedPayloads), indexAxis: 'y', scales: { x: { type: 'linear', beginAtZero: true, suggestedMax: (metric === 'downtime' || metric === 'avgDuration') ? undefined : undefined, ticks: { color: '#c6d3ea', callback: v => (metric === 'downtime' || metric === 'avgDuration') ? formatClockDuration(Number(v || 0)) : formatChartValue(Number(v || 0)) }, grid: { color: 'rgba(255,255,255,.04)' }, title: { display: true, text: axisTitles.x, color: '#d6e2f8' } }, y: { type: 'category', ticks: { color: '#c6d3ea', autoSkip: false, callback(value, idx) { return drilldownLabelShort(expandedLabels[idx] || expandedLabels[value] || '', 26); } }, grid: { display: false }, title: { display: true, text: axisTitles.y, color: '#d6e2f8' } } } } });
 
     document.querySelector(`[data-rank-card="${key}"] .micro`).textContent = 'No duration data available for current selection';
       document.querySelector(`[data-expand="${key}"]`).textContent = expanded ? 'Collapse' : 'Show all';
@@ -5699,7 +5712,8 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     const expandedLabels = expandedView.map(x => x.name);
     const expandedPayloads = expandedView.map(x => ({ entityKey: x.entityKey || x.name, displayLabel: x.displayLabel || x.name, sourceType: (key === 'version' && metric === 'perPress') ? 'versionPerPress' : (x.sourceType || 'errorsAgg'), metric, parentContext: { path: [], parentValue: 0 } }));
     const expandedData = expandedView.map(x => metric === 'events' ? (x.metrics?.events || x.events || 0) : metric === 'downtime' ? (x.metrics?.durationSeconds || x.totalDurationSeconds || x.downtime || 0) : metric === 'avgDuration' ? (x.metrics?.avgDuration || x.avgDuration || 0) : metric === 'perPress' ? (x.perPress || 0) : (x[metric] || 0));
-    CHART_EXPANDED_CONFIGS.set(`${key}Chart`, { type: 'bar', data: { labels: expandedLabels, datasets: [{ data: expandedData, backgroundColor: expandedView.map((row, i) => isPressImpactChart ? (row.impactColor || deriveImpactTier(row).color) : palette[i % palette.length]), borderRadius: 6 }] }, options: { ...baseOptions(key, expandedLabels, expandedPayloads), indexAxis: 'y' } });
+    const axisTitles = rankingAxisTitles(key, metric);
+    CHART_EXPANDED_CONFIGS.set(`${key}Chart`, { type: 'bar', data: { labels: expandedLabels, datasets: [{ data: expandedData, backgroundColor: expandedView.map((row, i) => isPressImpactChart ? (row.impactColor || deriveImpactTier(row).color) : palette[i % palette.length]), borderRadius: 6 }] }, options: { ...baseOptions(key, expandedLabels, expandedPayloads), indexAxis: 'y', scales: { x: { type: 'linear', beginAtZero: true, suggestedMax: (metric === 'downtime' || metric === 'avgDuration') ? undefined : undefined, ticks: { color: '#c6d3ea', callback: v => (metric === 'downtime' || metric === 'avgDuration') ? formatClockDuration(Number(v || 0)) : formatChartValue(Number(v || 0)) }, grid: { color: 'rgba(255,255,255,.04)' }, title: { display: true, text: axisTitles.x, color: '#d6e2f8' } }, y: { type: 'category', ticks: { color: '#c6d3ea', autoSkip: false, callback(value, idx) { return drilldownLabelShort(expandedLabels[idx] || expandedLabels[value] || '', 26); } }, grid: { display: false }, title: { display: true, text: axisTitles.y, color: '#d6e2f8' } } } } });
 
     document.querySelector(`[data-rank-card="${key}"] .micro`).textContent = metric === 'downtime' ? 'No duration data available for current selection' : 'No ranking data available for current filters/metric.';
       document.querySelector(`[data-expand="${key}"]`).textContent = expanded ? 'Collapse' : 'Show all';
@@ -5730,7 +5744,7 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
           ...baseOptions(key, labels, payloads).scales,
           x: {
             ...baseOptions(key, labels, payloads).scales.x,
-            title: isPressImpactChart ? { display: true, text: meta.axisLabel, color: '#c6d3ea' } : undefined,
+            title: { display: true, text: rankingAxisTitles(key, metric).x, color: '#d6e2f8' },
             ticks: {
               ...baseOptions(key, labels, payloads).scales.x.ticks,
               callback: value => {
@@ -5740,10 +5754,15 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
             }
           },
           y: {
-            ...baseOptions(key, labels, payloads).scales.y,
+            type: 'category',
+            grid: { display: false },
+            title: { display: true, text: rankingAxisTitles(key, metric).y, color: '#d6e2f8' },
             ticks: {
-              ...baseOptions(key, labels, payloads).scales.y.ticks,
-              autoSkip: false
+              color: '#c6d3ea',
+              autoSkip: false,
+              callback(value, idx) {
+                return drilldownLabelShort(labels[idx] || labels[value] || '', 26);
+              }
             }
           }
         },
@@ -5828,7 +5847,8 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     const expandedLabels = expandedView.map(x => x.name);
     const expandedPayloads = expandedView.map(x => ({ entityKey: x.entityKey || x.name, displayLabel: x.displayLabel || x.name, sourceType: (key === 'version' && metric === 'perPress') ? 'versionPerPress' : (x.sourceType || 'errorsAgg'), metric, parentContext: { path: [], parentValue: 0 } }));
     const expandedData = expandedView.map(x => metric === 'events' ? (x.metrics?.events || x.events || 0) : metric === 'downtime' ? (x.metrics?.durationSeconds || x.totalDurationSeconds || x.downtime || 0) : metric === 'avgDuration' ? (x.metrics?.avgDuration || x.avgDuration || 0) : metric === 'perPress' ? (x.perPress || 0) : (x[metric] || 0));
-    CHART_EXPANDED_CONFIGS.set(`${key}Chart`, { type: 'bar', data: { labels: expandedLabels, datasets: [{ data: expandedData, backgroundColor: expandedView.map((row, i) => isPressImpactChart ? (row.impactColor || deriveImpactTier(row).color) : palette[i % palette.length]), borderRadius: 6 }] }, options: { ...baseOptions(key, expandedLabels, expandedPayloads), indexAxis: 'y' } });
+    const axisTitles = rankingAxisTitles(key, metric);
+    CHART_EXPANDED_CONFIGS.set(`${key}Chart`, { type: 'bar', data: { labels: expandedLabels, datasets: [{ data: expandedData, backgroundColor: expandedView.map((row, i) => isPressImpactChart ? (row.impactColor || deriveImpactTier(row).color) : palette[i % palette.length]), borderRadius: 6 }] }, options: { ...baseOptions(key, expandedLabels, expandedPayloads), indexAxis: 'y', scales: { x: { type: 'linear', beginAtZero: true, suggestedMax: (metric === 'downtime' || metric === 'avgDuration') ? undefined : undefined, ticks: { color: '#c6d3ea', callback: v => (metric === 'downtime' || metric === 'avgDuration') ? formatClockDuration(Number(v || 0)) : formatChartValue(Number(v || 0)) }, grid: { color: 'rgba(255,255,255,.04)' }, title: { display: true, text: axisTitles.x, color: '#d6e2f8' } }, y: { type: 'category', ticks: { color: '#c6d3ea', autoSkip: false, callback(value, idx) { return drilldownLabelShort(expandedLabels[idx] || expandedLabels[value] || '', 26); } }, grid: { display: false }, title: { display: true, text: axisTitles.y, color: '#d6e2f8' } } } } });
 
     document.querySelector(`[data-rank-card="${key}"] .micro`).textContent = (key === 'version' && metric === 'perPress')
       ? `${expanded ? 'Full ranking' : 'Top 5'} by distinct press count. Source: errorsAgg distinct presses per version.`
