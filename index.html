@@ -1326,6 +1326,7 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     customerVolumeMode: 'total',
     customerVolumeSort: 'desc',
     customerVolumeExpanded: false,
+    expandedViewAll: { subsystem:false, alert:false, version:false, customerVolume:false, pressImpactScatter:false },
     customerVolumeLookup: new Map(),
     customerVolumeRows: [],
     customerVolumeAllRows: [],
@@ -1352,6 +1353,7 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
   const CHARTS = new Map();
   const CHART_CONFIGS = new Map();
   const CHART_EXPANDED_CONFIGS = new Map();
+  const CHART_DEFAULT_EXPANDED_CONFIGS = new Map();
   const SEMANTIC_COLORS = {
     critical: '#f36b63',
     elevated: '#f0b165',
@@ -5103,7 +5105,7 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
       modal = document.createElement('div');
       modal.id = 'chartExpandModal';
       modal.className = 'chart-expand-modal';
-      modal.innerHTML = '<div class="chart-expand-panel"><div class="chart-expand-head"><div><h2 id="chartExpandTitle"></h2><p id="chartExpandSubtitle" class="micro"></p></div><button id="chartExpandClose" class="btn secondary" type="button">Close</button></div><div class="chart-expand-canvas-wrap"><canvas id="chartExpandCanvas"></canvas></div></div>';
+      modal.innerHTML = '<div class="chart-expand-panel"><div class="chart-expand-head"><div><h2 id="chartExpandTitle"></h2><p id="chartExpandSubtitle" class="micro"></p></div><div style="display:flex;gap:8px;"><button id="chartExpandViewAll" class="btn secondary" type="button">View all</button><button id="chartExpandClose" class="btn secondary" type="button">Close</button></div></div><div class="chart-expand-canvas-wrap"><canvas id="chartExpandCanvas"></canvas></div></div>';
       document.body.appendChild(modal);
       modal.addEventListener('click', e => { if (e.target === modal) closeExpandedChart(); });
       modal.querySelector('#chartExpandClose')?.addEventListener('click', closeExpandedChart);
@@ -5113,9 +5115,19 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     modal.classList.add('show');
     document.body.classList.add('modal-open');
     const expandedConfig = cloneChartConfig(config);
-    expandedConfig.options = { ...(expandedConfig.options || {}), maintainAspectRatio: false, responsive: true };
-    expandedConfig.options.layout = expandedConfig.options.layout || { padding: 12 };
-    requestAnimationFrame(() => replaceChart('chartExpandCanvas', expandedConfig));
+    const defaultConfig = CHART_DEFAULT_EXPANDED_CONFIGS.get(chartId);
+    const viewAllBtn = modal.querySelector('#chartExpandViewAll');
+    const chartKey = chartId === 'customerVolumeChart' ? 'customerVolume' : (chartId === 'pressImpactScatterChart' ? 'pressImpactScatter' : chartId.replace('Chart',''));
+    if (viewAllBtn && defaultConfig) {
+      const isAll = !!STATE.expandedViewAll[chartKey];
+      viewAllBtn.classList.toggle('active', isAll);
+      viewAllBtn.textContent = isAll ? 'Show top items' : 'View all';
+      viewAllBtn.onclick = () => { STATE.expandedViewAll[chartKey] = !STATE.expandedViewAll[chartKey]; openExpandedChart(chartId, title); };
+    } else if (viewAllBtn) { viewAllBtn.style.display = 'none'; }
+    const chosenConfig = (defaultConfig && !STATE.expandedViewAll[chartKey]) ? defaultConfig : expandedConfig;
+    chosenConfig.options = { ...(chosenConfig.options || {}), maintainAspectRatio: false, responsive: true };
+    chosenConfig.options.layout = chosenConfig.options.layout || { padding: 12 };
+    requestAnimationFrame(() => replaceChart('chartExpandCanvas', chosenConfig));
   }
 
   function closeExpandedChart() {
@@ -5634,6 +5646,12 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     return Number.isFinite(expandedLimit) && expandedLimit > 0 ? [...fullRows].slice(0, expandedLimit) : [...fullRows];
   }
 
+  const EXPANDED_DEFAULT_LIMITS = { subsystem: 12, version: 12, alert: 15, customerVolume: 15, availability: 15, pressImpactScatter: 12 };
+  function getExpandedDefaultRows(key, rows = []) {
+    const limit = EXPANDED_DEFAULT_LIMITS[key];
+    return Number.isFinite(limit) ? rows.slice(0, limit) : rows;
+  }
+
   function rankingAxisTitles(key, metric) {
     if (key === 'subsystem') return { x: metric === 'downtime' ? 'Valid Duration' : 'Total Events', y: 'Subsystem' };
     if (key === 'version') {
@@ -5686,10 +5704,15 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
       showNoDataChart(`${key}Chart`, 'No duration data available for current selection');
   
     // Preview and expanded use identical aggregation rows; only slicing differs.
+    const expandedDefaultRows = getExpandedDefaultRows(key, expandedView);
+    const expandedDefaultLabels = expandedDefaultRows.map(x => x.name);
+    const expandedDefaultPayloads = expandedDefaultRows.map(x => ({ entityKey: x.entityKey || x.name, displayLabel: x.displayLabel || x.name, sourceType: (key === 'version' && metric === 'perPress') ? 'versionPerPress' : (x.sourceType || 'errorsAgg'), metric, parentContext: { path: [], parentValue: 0 } }));
+    const expandedDefaultData = expandedDefaultRows.map(x => metric === 'events' ? (x.metrics?.events || x.events || 0) : metric === 'downtime' ? (x.metrics?.durationSeconds || x.totalDurationSeconds || x.downtime || 0) : metric === 'avgDuration' ? (x.metrics?.avgDuration || x.avgDuration || 0) : metric === 'perPress' ? (x.perPress || 0) : (x[metric] || 0));
     const expandedLabels = expandedView.map(x => x.name);
     const expandedPayloads = expandedView.map(x => ({ entityKey: x.entityKey || x.name, displayLabel: x.displayLabel || x.name, sourceType: (key === 'version' && metric === 'perPress') ? 'versionPerPress' : (x.sourceType || 'errorsAgg'), metric, parentContext: { path: [], parentValue: 0 } }));
     const expandedData = expandedView.map(x => metric === 'events' ? (x.metrics?.events || x.events || 0) : metric === 'downtime' ? (x.metrics?.durationSeconds || x.totalDurationSeconds || x.downtime || 0) : metric === 'avgDuration' ? (x.metrics?.avgDuration || x.avgDuration || 0) : metric === 'perPress' ? (x.perPress || 0) : (x[metric] || 0));
     const axisTitles = rankingAxisTitles(key, metric);
+    CHART_DEFAULT_EXPANDED_CONFIGS.set(`${key}Chart`, { type: 'bar', data: { labels: expandedDefaultLabels, datasets: [{ data: expandedDefaultData, backgroundColor: expandedDefaultRows.map((row, i) => isPressImpactChart ? (row.impactColor || deriveImpactTier(row).color) : palette[i % palette.length]), borderRadius: 6 }] }, options: { ...baseOptions(key, expandedDefaultLabels, expandedDefaultPayloads), indexAxis: 'y', scales: { x: { type: 'linear', beginAtZero: true, ticks: { color: '#c6d3ea', callback: v => (metric === 'downtime' || metric === 'avgDuration') ? formatClockDuration(Number(v || 0)) : formatChartValue(Number(v || 0)) }, grid: { color: 'rgba(255,255,255,.04)' }, title: { display: true, text: axisTitles.x, color: '#d6e2f8' } }, y: { type: 'category', ticks: { color: '#c6d3ea', autoSkip: false, callback(value, idx) { return drilldownLabelShort(expandedDefaultLabels[idx] || expandedDefaultLabels[value] || '', 26); } }, grid: { display: false }, title: { display: true, text: axisTitles.y, color: '#d6e2f8' } } } } });
     CHART_EXPANDED_CONFIGS.set(`${key}Chart`, { type: 'bar', data: { labels: expandedLabels, datasets: [{ data: expandedData, backgroundColor: expandedView.map((row, i) => isPressImpactChart ? (row.impactColor || deriveImpactTier(row).color) : palette[i % palette.length]), borderRadius: 6 }] }, options: { ...baseOptions(key, expandedLabels, expandedPayloads), indexAxis: 'y', scales: { x: { type: 'linear', beginAtZero: true, suggestedMax: (metric === 'downtime' || metric === 'avgDuration') ? undefined : undefined, ticks: { color: '#c6d3ea', callback: v => (metric === 'downtime' || metric === 'avgDuration') ? formatClockDuration(Number(v || 0)) : formatChartValue(Number(v || 0)) }, grid: { color: 'rgba(255,255,255,.04)' }, title: { display: true, text: axisTitles.x, color: '#d6e2f8' } }, y: { type: 'category', ticks: { color: '#c6d3ea', autoSkip: false, callback(value, idx) { return drilldownLabelShort(expandedLabels[idx] || expandedLabels[value] || '', 26); } }, grid: { display: false }, title: { display: true, text: axisTitles.y, color: '#d6e2f8' } } } } });
 
     document.querySelector(`[data-rank-card="${key}"] .micro`).textContent = 'No duration data available for current selection';
@@ -5709,6 +5732,10 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
       showNoDataChart(`${key}Chart`, metric === 'downtime' ? 'No duration data available for current selection' : 'No ranking data available for current filters/metric.');
   
     // Preview and expanded use identical aggregation rows; only slicing differs.
+    const expandedDefaultRows = getExpandedDefaultRows(key, expandedView);
+    const expandedDefaultLabels = expandedDefaultRows.map(x => x.name);
+    const expandedDefaultPayloads = expandedDefaultRows.map(x => ({ entityKey: x.entityKey || x.name, displayLabel: x.displayLabel || x.name, sourceType: (key === 'version' && metric === 'perPress') ? 'versionPerPress' : (x.sourceType || 'errorsAgg'), metric, parentContext: { path: [], parentValue: 0 } }));
+    const expandedDefaultData = expandedDefaultRows.map(x => metric === 'events' ? (x.metrics?.events || x.events || 0) : metric === 'downtime' ? (x.metrics?.durationSeconds || x.totalDurationSeconds || x.downtime || 0) : metric === 'avgDuration' ? (x.metrics?.avgDuration || x.avgDuration || 0) : metric === 'perPress' ? (x.perPress || 0) : (x[metric] || 0));
     const expandedLabels = expandedView.map(x => x.name);
     const expandedPayloads = expandedView.map(x => ({ entityKey: x.entityKey || x.name, displayLabel: x.displayLabel || x.name, sourceType: (key === 'version' && metric === 'perPress') ? 'versionPerPress' : (x.sourceType || 'errorsAgg'), metric, parentContext: { path: [], parentValue: 0 } }));
     const expandedData = expandedView.map(x => metric === 'events' ? (x.metrics?.events || x.events || 0) : metric === 'downtime' ? (x.metrics?.durationSeconds || x.totalDurationSeconds || x.downtime || 0) : metric === 'avgDuration' ? (x.metrics?.avgDuration || x.avgDuration || 0) : metric === 'perPress' ? (x.perPress || 0) : (x[metric] || 0));
@@ -5844,6 +5871,10 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     if (!rendered && !view.length) setRankingChartEmptyState(key, 'No ranking data available for current filters/metric.');
 
     // Preview and expanded use identical aggregation rows; only slicing differs.
+    const expandedDefaultRows = getExpandedDefaultRows(key, expandedView);
+    const expandedDefaultLabels = expandedDefaultRows.map(x => x.name);
+    const expandedDefaultPayloads = expandedDefaultRows.map(x => ({ entityKey: x.entityKey || x.name, displayLabel: x.displayLabel || x.name, sourceType: (key === 'version' && metric === 'perPress') ? 'versionPerPress' : (x.sourceType || 'errorsAgg'), metric, parentContext: { path: [], parentValue: 0 } }));
+    const expandedDefaultData = expandedDefaultRows.map(x => metric === 'events' ? (x.metrics?.events || x.events || 0) : metric === 'downtime' ? (x.metrics?.durationSeconds || x.totalDurationSeconds || x.downtime || 0) : metric === 'avgDuration' ? (x.metrics?.avgDuration || x.avgDuration || 0) : metric === 'perPress' ? (x.perPress || 0) : (x[metric] || 0));
     const expandedLabels = expandedView.map(x => x.name);
     const expandedPayloads = expandedView.map(x => ({ entityKey: x.entityKey || x.name, displayLabel: x.displayLabel || x.name, sourceType: (key === 'version' && metric === 'perPress') ? 'versionPerPress' : (x.sourceType || 'errorsAgg'), metric, parentContext: { path: [], parentValue: 0 } }));
     const expandedData = expandedView.map(x => metric === 'events' ? (x.metrics?.events || x.events || 0) : metric === 'downtime' ? (x.metrics?.durationSeconds || x.totalDurationSeconds || x.downtime || 0) : metric === 'avgDuration' ? (x.metrics?.avgDuration || x.avgDuration || 0) : metric === 'perPress' ? (x.perPress || 0) : (x[metric] || 0));
