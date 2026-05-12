@@ -1143,28 +1143,28 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
             <section id="executiveSummaryCard" class="span-12"></section>
 
             <article class="card span-6" data-rank-card="subsystem">
-              <div class="chart-head"><h3>Top Subsystems</h3><button class="view-all" data-chart-expand="subsystemChart" data-chart-title="Top Subsystems">Expand</button></div>
+              <div class="chart-head"><h3>Top Subsystems</h3><div class="metric-toggle" data-chart-toggle="subsystem"><button class="btn active" data-mode="events">Events</button><button class="btn" data-mode="duration">Duration</button></div><button class="view-all" data-chart-expand="subsystemChart" data-chart-title="Top Subsystems">Expand</button></div>
               <div class="micro">Top 5 by events. Click Expand for full list.</div><div class="chart-area"><canvas id="subsystemChart"></canvas></div>
             </article>
             <article class="card span-6" data-rank-card="version">
-              <div class="chart-head"><h3>Top Versions</h3><button class="view-all" data-chart-expand="versionChart" data-chart-title="Top Versions">Expand</button></div>
+              <div class="chart-head"><h3>Top Versions</h3><div class="metric-toggle" data-chart-toggle="version"><button class="btn active" data-mode="events">Events</button><button class="btn" data-mode="duration">Duration</button><button class="btn" data-mode="perPress">Per Press</button></div><button class="view-all" data-chart-expand="versionChart" data-chart-title="Top Versions">Expand</button></div>
               <div class="micro">Top 5 versions by events. Click Expand for full list.</div>
               <div class="chart-area"><canvas id="versionChart"></canvas></div>
             </article>
 
             <article class="card span-6" data-rank-card="alert">
-              <div class="chart-head"><h3>Top Errors</h3><button class="view-all" data-chart-expand="alertChart" data-chart-title="Top Errors">Expand</button></div>
+              <div class="chart-head"><h3>Top Errors</h3><div class="metric-toggle" data-chart-toggle="alert"><button class="btn active" data-mode="events">Events</button><button class="btn" data-mode="duration">Duration</button></div><button class="view-all" data-chart-expand="alertChart" data-chart-title="Top Errors">Expand</button></div>
               <div class="micro">Top 5 by recurring events. Click Expand for full list.</div><div class="chart-area"><canvas id="alertChart"></canvas></div>
             </article>
             <article class="card span-6">
               <div class="chart-head"><h3>Print Volume</h3><button class="view-all" data-chart-expand="customerVolumeChart" data-chart-title="Print Volume">Expand</button></div>
               <div class="micro" id="customerVolumeNote">Good / waste volume by press.</div>
-              <div class="chart-tools hidden-legacy"><div class="metric-toggle" id="customerVolumeUnitToggle"><button class="btn active" data-unit="flats">Flats</button><button class="btn" data-unit="sheets">Sheets</button></div><label><input type="checkbox" id="customerVolumeShowWaste" checked /> Show Waste</label><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div>
+              <div class="chart-tools"><div class="metric-toggle" id="customerVolumeUnitToggle"><button class="btn active" data-unit="flats">Flats</button><button class="btn" data-unit="sheets">Sheets</button></div><label><input type="checkbox" id="customerVolumeShowWaste" checked /> Show Waste</label><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div>
               <div class="chart-area"><canvas id="customerVolumeChart"></canvas></div>
             </article>
             <article class="card span-6">
-              <div class="chart-head"><h3>Availability</h3><button class="view-all" data-chart-expand="availabilityByPressChart" data-chart-title="Availability">Expand</button></div>
-              <div class="micro" id="availabilityNote">Lowest 5 presses by availability. Click Expand for full list.</div>
+              <div class="chart-head"><h3>Availability Over Time</h3><button class="view-all" data-chart-expand="availabilityByPressChart" data-chart-title="Availability Over Time">Expand</button></div>
+              <div class="micro" id="availabilityNote">Availability trend over time. Click Expand for full view.</div>
               <div class="chart-area"><canvas id="availabilityByPressChart"></canvas></div>
             </article>
             <article class="card span-12 compact-impact-card" id="riskSection"></article>
@@ -4597,7 +4597,7 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
 
       renderDowntimePressMainChart(sourceScope);
       renderDowntimeTrendMainChart(sourceScope);
-      renderAvailabilityByPressMainChart(sourceScope);
+      renderAvailabilityTrendMainChart(sourceScope);
       renderAiAssistant(summary, kpis);
     } catch (error) {
       console.warn('[command-center-extras-failed]', error);
@@ -4619,22 +4619,6 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     const labels = rows.map(r => dateLabelFromISO(r.name)), data = rows.map(r => r.value / 3600);
     if (!rows.length) return showNoDataChart('downtimeTrendMainChart', 'No downtime trend data available');
     replaceChart('downtimeTrendMainChart', { type:'line', data:{ labels, datasets:[{ label:'Downtime', data, borderColor:'#ff4b4b', backgroundColor:'rgba(255,75,75,.12)', pointBackgroundColor:'#ff4b4b', tension:.32, fill:true }] }, options: commandChartOptions('hours', labels), disableAutoValueLabels:true });
-  }
-
-  function renderAvailabilityTrendMainChart(sourceScope = {}) {
-    const byDay = new Map();
-    (sourceScope.availabilityAgg || []).forEach(r => {
-      const day = r.day || 'N/A';
-      const slot = byDay.get(day) || { available:0, tracked:0 };
-      const runtime = Number(r.runtimeSeconds || 0);
-      const down = Number(r.downtimeSeconds || r.plannedDowntimeSeconds || 0) + Number(r.unplannedDowntimeSeconds || 0);
-      slot.available += runtime; slot.tracked += runtime + down;
-      byDay.set(day, slot);
-    });
-    const rows = [...byDay.entries()].map(([day,v]) => ({ day, pct: v.tracked ? (v.available / v.tracked) * 100 : 0 })).sort((a,b)=>String(a.day).localeCompare(String(b.day)));
-    const labels = rows.map(r => dateLabelFromISO(r.day));
-    if (!rows.length) return showNoDataChart('availabilityTrendMainChart', 'No availability data available');
-    replaceChart('availabilityTrendMainChart', { type:'line', data:{ labels, datasets:[{ label:'Availability', data:rows.map(r=>r.pct), borderColor:'#27d4ff', backgroundColor:'rgba(39,212,255,.12)', pointBackgroundColor:'#27d4ff', tension:.32, fill:true }] }, options: commandChartOptions('percent', labels), disableAutoValueLabels:true });
   }
 
   // Source: availabilityAgg. Preview uses bottom 5 availability presses; expanded uses full sorted list.
@@ -4673,6 +4657,41 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     });
     const note = document.getElementById('availabilityNote');
     if (note) note.textContent = STATE.expand?.availability ? 'Full availability view.' : 'Lowest 5 presses by availability. Click Expand for full list.';
+  }
+
+  function buildAvailabilityTrendRows(sourceScope = {}) {
+    const byDay = new Map();
+    (sourceScope.availabilityAgg || []).forEach(r => {
+      const day = r.day || '';
+      if (!day) return;
+      const slot = byDay.get(day) || { runtime: 0, downtime: 0 };
+      slot.runtime += Number(r.runtimeSeconds || 0);
+      slot.downtime += Number(totalDowntimeFromAvailabilityRow(r) || 0);
+      byDay.set(day, slot);
+    });
+    return [...byDay.entries()].map(([day, vals]) => {
+      const tracked = vals.runtime + vals.downtime;
+      return { day, availabilityPct: tracked > 0 ? (vals.runtime / tracked) * 100 : 0 };
+    }).sort((a, b) => String(a.day).localeCompare(String(b.day)));
+  }
+
+  function renderAvailabilityTrendMainChart(sourceScope = {}) {
+    const trendRows = buildAvailabilityTrendRows(sourceScope);
+    const note = document.getElementById('availabilityNote');
+    if (!trendRows.length) {
+      if (note) note.textContent = 'No day/date availability found. Falling back to availability by press.';
+      return renderAvailabilityByPressMainChart(sourceScope);
+    }
+    const labels = trendRows.map(r => dateLabelFromISO(r.day));
+    const data = trendRows.map(r => Number(r.availabilityPct || 0));
+    replaceChart('availabilityByPressChart', {
+      type: 'line',
+      data: { labels, datasets: [{ label: 'Availability %', data, borderColor: '#27d4ff', backgroundColor: 'rgba(39,212,255,.10)', pointBackgroundColor: '#7fe7ff', pointRadius: 2.5, pointHoverRadius: 4, tension: .28, fill: true }] },
+      options: { ...baseOptions('availability', labels, trendRows.map(r => ({ entityKey: r.day, displayLabel: r.day, sourceType: 'availabilityAgg', metric: 'availability' }))), scales: { y: { beginAtZero: false, suggestedMin: Math.max(0, Math.floor(Math.min(...data) - 5)), suggestedMax: 100, ticks: { color: '#c6d3ea', callback: v => `${Number(v).toFixed(0)}%` }, grid: { color: 'rgba(255,255,255,.04)' }, title: { display: true, text: 'Availability %', color: '#d6e2f8' } }, x: { ticks: { color: '#c6d3ea', maxRotation: 0, autoSkip: true }, grid: { color: 'rgba(255,255,255,.04)' }, title: { display: true, text: 'Date / Day', color: '#d6e2f8' } } } }
+    });
+    CHART_DEFAULT_EXPANDED_CONFIGS.set('availabilityByPressChart', cloneChartConfig(CHART_CONFIGS.get('availabilityByPressChart')));
+    CHART_EXPANDED_CONFIGS.set('availabilityByPressChart', cloneChartConfig(CHART_CONFIGS.get('availabilityByPressChart')));
+    if (note) note.textContent = 'Availability trend over time. Click Expand for full view.';
   }
 
   function renderRecentAlertsStrip(sourceScope = {}) {
