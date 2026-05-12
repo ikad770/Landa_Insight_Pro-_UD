@@ -1012,24 +1012,65 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     @media (max-width:1180px){.command-grid>.card:has(#customerVolumeChart),.command-grid>.card:has(#availabilityByPressChart),.command-grid .card[data-rank-card="subsystem"],.command-grid .card[data-rank-card="version"],.command-grid .card[data-rank-card="alert"]{grid-column:span 6}.command-grid .span-12{grid-column:span 12}}
     @media (max-width:860px){.command-grid>.card:has(#customerVolumeChart),.command-grid>.card:has(#availabilityByPressChart),.command-grid .card[data-rank-card="subsystem"],.command-grid .card[data-rank-card="version"],.command-grid .card[data-rank-card="alert"]{grid-column:span 12}.command-grid .chart-area{height:220px!important;min-height:220px!important}}
 
-    /* Final command-center overrides to neutralize v1.6.0 compression */
-    .command-shell{grid-template-columns:210px minmax(0,1fr)!important;gap:12px!important}
-    .command-layout{grid-template-columns:minmax(0,1fr) 270px!important;gap:12px!important;align-items:start!important}
-    .ai-panel{min-width:0!important}
-    .command-grid{grid-template-columns:repeat(12,minmax(0,1fr))!important;gap:10px!important;align-items:stretch!important}
-    .command-grid .card{padding:12px!important}
-    .command-grid .chart-area{height:260px!important;min-height:260px!important}
-    .command-grid .card[data-rank-card="subsystem"]{grid-column:span 4!important}
-    .command-grid .card[data-rank-card="version"]{grid-column:span 4!important}
-    .command-grid .card[data-rank-card="alert"]{grid-column:span 4!important}
-    .command-grid>.card:has(#customerVolumeChart){grid-column:span 4!important}
-    .command-grid>.card:has(#availabilityByPressChart){grid-column:span 5!important}
-    .command-grid>.card:has(.action-list){grid-column:span 3!important}
-    #riskSection{grid-column:span 8!important;padding:12px!important}
-    #riskSection .chart-area,.matrix-chart-area{height:320px!important;min-height:320px!important}
-    @media (max-width:1440px){.command-layout{grid-template-columns:minmax(0,1fr)!important}.ai-panel{grid-row:auto!important}.command-grid>.card:has(#availabilityByPressChart){grid-column:span 8!important}}
-    @media (max-width:1160px){.command-grid>.card:has(#customerVolumeChart),.command-grid>.card:has(#availabilityByPressChart),.command-grid .card[data-rank-card="subsystem"],.command-grid .card[data-rank-card="version"],.command-grid .card[data-rank-card="alert"],#riskSection{grid-column:span 6!important}}
-    @media (max-width:900px){.command-shell{display:block!important}.command-sidebar{display:none!important}.command-grid>.card:has(#customerVolumeChart),.command-grid>.card:has(#availabilityByPressChart),.command-grid .card[data-rank-card="subsystem"],.command-grid .card[data-rank-card="version"],.command-grid .card[data-rank-card="alert"],#riskSection{grid-column:span 12!important}.command-grid .chart-area{height:240px!important;min-height:240px!important}}
+    /* Final command-center responsive architecture fixes (layout-only) */
+:root{--card-gap:12px;--chart-card-h:292px;--chart-card-h-lg:352px}
+html,body{width:100%;max-width:100%;overflow-x:hidden}
+body.command-theme .app{max-width:none!important;width:100%!important;margin:0!important;padding:0!important}
+.command-shell{width:100%;max-width:none!important;margin:0!important;padding:12px!important;display:grid!important;grid-template-columns:220px minmax(0,1fr)!important;gap:14px!important;align-items:start!important}
+.command-sidebar{position:sticky!important;top:12px!important;height:calc(100vh - 24px)!important}
+.command-main{min-width:0!important;gap:12px!important;align-content:start!important}
+.command-layout{display:grid!important;grid-template-columns:minmax(0,1fr) 320px!important;gap:14px!important;align-items:start!important}
+.command-header,.command-meta,.command-kpis,.insight-grid{margin:0!important}
+.command-alert{margin:0!important}
+.command-kpis{grid-template-columns:repeat(7,minmax(0,1fr))!important;gap:var(--card-gap)!important}
+.command-kpis .kpi{min-height:84px!important}
+.insight-grid{display:grid!important;grid-template-columns:1fr 1.35fr 1.35fr 1.35fr 1.9fr!important;gap:var(--card-gap)!important;align-items:stretch!important}
+.insight-tile{min-height:120px!important;height:120px!important}
+.insight-tile:last-child{min-height:120px!important;height:120px!important}
+.action-list{max-height:none!important;overflow:visible!important;padding-right:0!important}
+.command-grid{display:grid!important;grid-template-columns:repeat(12,minmax(0,1fr))!important;gap:14px!important;grid-auto-flow:row dense!important;align-items:stretch!important}
+.command-grid .card{display:flex!important;flex-direction:column!important;padding:12px!important;min-width:0!important}
+.command-grid .chart-head{margin-bottom:8px!important}
+.command-grid .micro{margin:0 0 8px!important}
+.command-grid .chart-area{flex:1 1 auto!important;height:var(--chart-card-h)!important;min-height:var(--chart-card-h)!important;max-height:none!important}
+.command-grid .card[data-rank-card="subsystem"],.command-grid .card[data-rank-card="version"],.command-grid .card[data-rank-card="alert"]{grid-column:span 4!important}
+.command-grid>.card:has(#customerVolumeChart),.command-grid>.card:has(#availabilityByPressChart),.command-grid>.card:has(.action-list){grid-column:span 4!important}
+#riskSection{grid-column:span 8!important}
+#riskSection .chart-area,.matrix-chart-area{height:var(--chart-card-h-lg)!important;min-height:var(--chart-card-h-lg)!important}
+.command-grid>.card:has(.zone-list){grid-column:span 4!important}
+.ai-panel{position:sticky!important;top:12px!important;min-height:calc(100vh - 24px)!important;max-height:calc(100vh - 24px)!important;overflow:auto!important}
+@media (max-width:1560px){
+  .command-layout{grid-template-columns:minmax(0,1fr)!important}
+  .ai-panel{position:relative!important;top:auto!important;min-height:auto!important;max-height:none!important;overflow:visible!important}
+}
+@media (max-width:1366px){
+  .command-shell{grid-template-columns:72px minmax(0,1fr)!important}
+  .side-item{grid-template-columns:1fr!important;justify-items:center!important}
+  .side-item span:not(.side-icon),.side-brand span:first-child,.data-status-card{display:none!important}
+  .command-kpis{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+  .insight-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+  .insight-tile:last-child{grid-column:span 3!important}
+  .command-grid .card[data-rank-card="subsystem"],.command-grid .card[data-rank-card="version"],.command-grid .card[data-rank-card="alert"],.command-grid>.card:has(#customerVolumeChart),.command-grid>.card:has(#availabilityByPressChart),.command-grid>.card:has(.action-list){grid-column:span 6!important}
+  #riskSection,.command-grid>.card:has(.zone-list){grid-column:span 12!important}
+}
+@media (max-width:1200px){
+  .command-shell{grid-template-columns:56px minmax(0,1fr)!important;padding:10px!important}
+  .command-kpis{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+  .insight-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .insight-tile:last-child{grid-column:span 2!important}
+  .command-grid .card{grid-column:span 6!important}
+  .command-grid .chart-area{height:272px!important;min-height:272px!important}
+}
+@media (max-width:900px){
+  .command-shell{display:block!important}
+  .command-sidebar{display:none!important}
+  .command-header{grid-template-columns:1fr!important}
+  .command-kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .insight-grid{grid-template-columns:1fr!important}
+  .insight-tile,.insight-tile:last-child{height:auto!important;min-height:120px!important;grid-column:auto!important}
+  .command-grid .card,#riskSection{grid-column:span 12!important}
+  .command-grid .chart-area{height:248px!important;min-height:248px!important}
+}
 </style>
 </head>
 <body>
