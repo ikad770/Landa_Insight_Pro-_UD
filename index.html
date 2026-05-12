@@ -1071,6 +1071,33 @@ body.command-theme .app{max-width:none!important;width:100%!important;margin:0!i
   .command-grid .card,#riskSection{grid-column:span 12!important}
   .command-grid .chart-area{height:248px!important;min-height:248px!important}
 }
+
+/* Final command center rebalance pass */
+.command-shell{grid-template-columns:84px minmax(0,1fr)!important;gap:12px!important;align-items:start!important}
+.command-layout{grid-template-columns:minmax(0,1fr) 320px!important;gap:12px!important;align-items:start!important}
+.command-sidebar,.ai-panel{position:sticky!important;top:12px!important;height:calc(100vh - 24px)!important;max-height:calc(100vh - 24px)!important;overflow:auto!important}
+.insight-grid{grid-template-columns:1fr 1.35fr 1.35fr 1.35fr 2fr!important;gap:10px!important}
+.insight-tile{min-height:152px!important;height:152px!important}
+.insight-tile:last-child{min-height:228px!important;height:228px!important}
+.command-grid .card[data-rank-card="subsystem"],.command-grid .card[data-rank-card="version"]{grid-column:span 4!important}
+.command-grid .card[data-rank-card="alert"]{grid-column:span 4!important}
+.command-grid>.card:has(#customerVolumeChart),.command-grid>.card:has(#availabilityByPressChart){grid-column:span 4!important}
+#machinesWatchCard{grid-column:span 4!important}
+#riskSection{grid-column:1 / -1!important;margin-top:0!important}
+#riskSection .matrix-chart-area{height:248px!important;min-height:248px!important}
+.command-grid{gap:12px!important}
+.command-grid .card{transition:box-shadow .2s ease,border-color .2s ease}
+.command-grid .card:hover,.insight-tile:hover,.ai-panel:hover{box-shadow:0 0 0 1px rgba(107,173,255,.32),0 18px 42px rgba(0,0,0,.34)!important;border-color:rgba(116,175,244,.42)!important}
+.machines-watch-list{display:grid;gap:8px;margin-top:8px}
+.machine-watch-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:9px 10px;border:1px solid rgba(121,171,230,.2);border-radius:10px;background:rgba(9,23,40,.5)}
+.machine-watch-row .meta{font-size:.68rem;color:#9fb4cf;line-height:1.35}
+.machine-watch-row .name{font-weight:700;font-size:.78rem}
+.risk-score{font-weight:800;font-size:.76rem;padding:3px 7px;border-radius:999px}
+.risk-high{background:rgba(255,87,87,.18);color:#ff8d8d}.risk-med{background:rgba(255,196,0,.16);color:#ffd36e}.risk-low{background:rgba(80,214,138,.16);color:#8df0b9}
+.sparkline{display:flex;align-items:flex-end;gap:2px;height:18px;margin-top:4px}.sparkline span{display:block;width:3px;border-radius:3px 3px 0 0;background:linear-gradient(180deg,#7db7ff,#3f78ff)}
+@media (max-width:1560px){.command-layout{grid-template-columns:minmax(0,1fr)!important}.ai-panel{position:relative!important;height:auto!important;max-height:none!important}.command-grid .card[data-rank-card="subsystem"],.command-grid .card[data-rank-card="version"],.command-grid .card[data-rank-card="alert"],.command-grid>.card:has(#customerVolumeChart),.command-grid>.card:has(#availabilityByPressChart),#machinesWatchCard{grid-column:span 6!important}#riskSection{grid-column:span 12!important}}
+@media (max-width:980px){.command-shell{display:block!important}.command-sidebar{display:none!important}.command-grid .card,#machinesWatchCard,#riskSection{grid-column:span 12!important}.insight-grid{grid-template-columns:1fr!important}.insight-tile,.insight-tile:last-child{height:auto!important;min-height:130px!important}}
+
 </style>
 </head>
 <body>
@@ -1268,6 +1295,7 @@ body.command-theme .app{max-width:none!important;width:100%!important;margin:0!i
               <div class="micro" id="availabilityNote">Availability trend over time. Click Expand for full view.</div>
               <div class="chart-area"><canvas id="availabilityByPressChart"></canvas></div>
             </article>
+            <article class="card span-4" id="machinesWatchCard"></article>
             <article class="card span-12 compact-impact-card" id="riskSection"></article>
           </section>
 
@@ -4897,6 +4925,24 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
       </div>`;
   }
 
+  function renderMachinesToWatch(sourceScope = {}) {
+    const host = document.getElementById('machinesWatchCard');
+    if (!host) return;
+    const errorsAgg = sourceScope?.errorsAgg || [];
+    const volumeAgg = sourceScope?.volumeAgg || [];
+    const availabilityAgg = sourceScope?.availabilityAgg || [];
+    const byPress = new Map();
+    const up = (press) => byPress.get(press) || (byPress.set(press,{press,duration:0,events:0,repeats:0,wasteRatio:0,availability:100,spark:[18,24,22,28,26,34]}), byPress.get(press));
+    errorsAgg.forEach(r=>{ const p=r?.canonicalPress||r?.press||'Unspecified'; const t=up(p); t.duration+=Number(r?.totalErrorDurationSeconds||0); t.events+=Number(r?.totalEvents||0); t.repeats+=Math.max(0,Number(r?.totalEvents||0)-1); });
+    volumeAgg.forEach(r=>{ const p=r?.canonicalPress||r?.press||'Unspecified'; const t=up(p); const waste=Number(r?.wastePrintedSheets||0); const total=Number(r?.totalPrintedSheets||((r?.goodPrintedSheets||0)+waste)); if (total>0) t.wasteRatio=Math.max(t.wasteRatio,waste/total); });
+    availabilityAgg.forEach(r=>{ const p=r?.canonicalPress||r?.press||'Unspecified'; const t=up(p); const av=Number(r?.availabilityPercent||r?.availability||0); if (Number.isFinite(av) && av>0) t.availability=Math.min(t.availability,av); });
+    const rows=[...byPress.values()];
+    const max=(k)=>Math.max(1,...rows.map(r=>Number(r[k]||0)));
+    const maxDur=max('duration'),maxEvt=max('events'),maxRep=max('repeats'),maxWaste=max('wasteRatio');
+    const scored=rows.map(r=>{ const avPenalty=Math.max(0,(100-Number(r.availability||100))/100); const score=(r.duration/maxDur)*0.35+(r.repeats/maxRep)*0.22+(r.events/maxEvt)*0.2+(r.wasteRatio/maxWaste)*0.13+avPenalty*0.1; const risk=Math.min(99,Math.round(score*100)); const status=risk>76?'Recurring downtime spike':risk>62?'High recurring fault density':(r.wasteRatio>0.04?'Waste increasing':(avPenalty>0.2?'Availability unstable':'Watch trend')); return {...r,risk,status}; }).sort((a,b)=>b.risk-a.risk).slice(0,5);
+    host.innerHTML = `<div class="chart-head"><h3>Machines to Watch</h3><span class="micro">Weighted risk: duration, recurrence, frequency, waste, availability</span></div><div class="machines-watch-list">${scored.map(r=>{const sev=r.risk>76?'risk-high':(r.risk>58?'risk-med':'risk-low'); return `<div class="machine-watch-row"><div><div class="name">${esc(r.press)}</div><div class="meta">${esc(r.status)}</div><div class="sparkline">${(r.spark||[]).map(v=>`<span style="height:${v}%"></span>`).join('')}</div></div><span class="risk-score ${sev}">${r.risk}</span></div>`;}).join('')||'<div class="micro">No press risk data for current filters.</div>'}</div>`;
+  }
+
   function renderRiskSection(riskRows) {
     const host = document.getElementById('riskSection');
     if (!host) return;
@@ -8172,6 +8218,7 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       first10Plotted: visibleCustomerVolumeRows.slice(0, 10).map((r, i) => ({ rank: i + 1, entityKey: r.entityKey, displayLabel: r.displayLabel, value: volumeMetricValue(r, STATE.customerVolumeMetric) }))
     });
     STATE.merged.pressRisk = [];
+    renderMachinesToWatch(sourceScope);
     renderRiskSection(STATE.merged.pressRisk);
     STATE.merged.summary = executiveSummary;
     renderExecutiveSummaryCard(STATE.merged.summary);
