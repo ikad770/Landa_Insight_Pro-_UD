@@ -982,6 +982,35 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     .action-item span:nth-child(2){min-width:0}
     .action-item strong,.action-item small{display:block;overflow:hidden;text-overflow:ellipsis}
     .action-footer{margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.08);display:flex;justify-content:flex-end;flex:0 0 auto}
+    /* v1.7.0 enterprise command-center layout refinement */
+    body.command-theme .app{max-width:1680px!important;margin:0 auto!important;}
+    .command-shell{max-width:1680px;margin:0 auto;grid-template-columns:clamp(176px,10.5vw,208px) minmax(0,1fr)!important;gap:12px!important;}
+    .command-layout{grid-template-columns:minmax(0,1fr) clamp(260px,16vw,300px)!important;gap:10px!important;}
+    .command-grid{grid-auto-flow:row dense;gap:10px!important;}
+    .command-grid .card{padding:11px 12px!important;}
+    .command-grid .chart-area{height:206px!important;min-height:206px!important;}
+    .command-grid [data-rank-card="alert"] .chart-area{height:150px!important;min-height:150px!important;}
+    .repeated-errors-list{gap:6px!important;margin-top:6px!important;}
+    .repeated-error-row{padding:7px 8px!important;border-radius:9px!important;}
+    .repeated-error-name{font-size:.75rem!important;}
+    .repeated-error-meta{font-size:.66rem!important;}
+    .command-grid .micro{margin:4px 0 6px!important;}
+    #riskSection{padding:11px 12px!important;}
+    .matrix-chart-area{height:240px!important;min-height:240px!important;}
+    .command-grid .card[data-rank-card="subsystem"], .command-grid .card[data-rank-card="version"]{grid-column:span 4;}
+    .command-grid .card[data-rank-card="alert"]{grid-column:span 4;}
+    .command-grid > .card:has(#customerVolumeChart){grid-column:span 4;}
+    .command-grid > .card:has(#availabilityByPressChart){grid-column:span 5;}
+    .command-grid > .card:has(.action-list){grid-column:span 3;}
+    #kpiStrip{padding-bottom:4px;border-bottom:1px solid rgba(130,176,230,.18);margin-bottom:2px!important;}
+    .ai-panel{min-height:auto!important;position:sticky!important;top:12px!important;}
+    .ai-panel,.action-list,.zone-list,.expand-zone-panel,.expand-scroll,.table-wrap{overflow:visible!important;max-height:none!important;}
+    .chart-expand-modal{background:rgba(2,7,14,.82)!important;}
+    .chart-expand-panel{width:min(92vw,1440px)!important;height:min(86vh,920px)!important;}
+    .chart-expand-canvas-wrap{padding:12px 14px 14px!important;}
+    @media (max-width:1400px){.command-layout{grid-template-columns:minmax(0,1fr)!important}.ai-panel{position:relative!important;top:auto!important}.command-grid>.card:has(#availabilityByPressChart){grid-column:span 8}.command-grid>.card:has(#customerVolumeChart){grid-column:span 4}}
+    @media (max-width:1180px){.command-grid>.card:has(#customerVolumeChart),.command-grid>.card:has(#availabilityByPressChart),.command-grid .card[data-rank-card="subsystem"],.command-grid .card[data-rank-card="version"],.command-grid .card[data-rank-card="alert"]{grid-column:span 6}.command-grid .span-12{grid-column:span 12}}
+    @media (max-width:860px){.command-grid>.card:has(#customerVolumeChart),.command-grid>.card:has(#availabilityByPressChart),.command-grid .card[data-rank-card="subsystem"],.command-grid .card[data-rank-card="version"],.command-grid .card[data-rank-card="alert"]{grid-column:span 12}.command-grid .chart-area{height:220px!important;min-height:220px!important}}
 </style>
 </head>
 <body>
@@ -1162,7 +1191,7 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
               <div class="chart-area"><canvas id="versionChart"></canvas></div>
             </article>
 
-            <article class="card span-4" data-rank-card="alert">
+            <article class="card span-3" data-rank-card="alert">
               <div class="chart-head"><h3>Repeated Errors</h3><div class="metric-toggle" data-chart-toggle="alert"><button class="btn active" data-mode="events">Events</button><button class="btn" data-mode="duration">Duration</button></div><button class="view-all" data-chart-expand="alertChart" data-chart-title="Top Errors">Expand</button></div>
               <div class="micro">Top 5 repeated errors with severity and impact progress.</div>
               <div id="repeatedErrorsList" class="repeated-errors-list"></div>
@@ -1174,7 +1203,7 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
               <div class="chart-tools"><div class="metric-toggle" id="customerVolumeUnitToggle"><button class="btn active" data-unit="flats">Flats</button><button class="btn" data-unit="sheets">Sheets</button></div><label><input type="checkbox" id="customerVolumeShowWaste" checked /> Show Waste</label><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div>
               <div class="chart-area"><canvas id="customerVolumeChart"></canvas></div>
             </article>
-            <article class="card span-4">
+            <article class="card span-5">
               <div class="chart-head"><h3>Availability Over Time</h3><button class="view-all" data-chart-expand="availabilityByPressChart" data-chart-title="Availability Over Time">Expand</button></div>
               <div class="micro" id="availabilityNote">Availability trend over time. Click Expand for full view.</div>
               <div class="chart-area"><canvas id="availabilityByPressChart"></canvas></div>
