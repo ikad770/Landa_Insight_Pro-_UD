@@ -167,6 +167,15 @@
     th,td { border-bottom:1px solid rgba(255,255,255,.08); padding:8px; text-align:left; }
     th { position:sticky; top:0; background:#1b2537; }
     .table-wrap{max-height:420px;overflow:auto;border:1px solid var(--border);border-radius:10px}
+    .repeated-errors-list{display:grid;gap:8px;margin-top:8px}
+    .repeated-error-row{display:grid;grid-template-columns:14px minmax(0,1fr) auto;gap:8px;align-items:center;padding:8px 10px;border:1px solid rgba(120,170,230,.2);border-radius:10px;background:rgba(9,21,37,.7)}
+    .repeated-error-dot{width:9px;height:9px;border-radius:50%}
+    .repeated-error-main{min-width:0}
+    .repeated-error-name{font-size:.79rem;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .repeated-error-meta{font-size:.7rem;color:#9cb1ce;margin-top:2px}
+    .repeated-error-bar{height:4px;border-radius:999px;background:rgba(255,255,255,.09);overflow:hidden;margin-top:6px}
+    .repeated-error-bar>span{display:block;height:100%;background:linear-gradient(90deg,#2ad0ff,#7b8dff)}
+    .matrix-chart-area{height:280px!important;min-height:280px!important}
 
     .drawer { position:fixed; inset:0; background:rgba(4,7,13,.7); display:none; align-items:flex-end; justify-content:center; z-index:30; }
     .drawer.show{display:flex}
@@ -1142,27 +1151,29 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
           <section class="command-grid">
             <section id="executiveSummaryCard" class="span-12"></section>
 
-            <article class="card span-6" data-rank-card="subsystem">
+            <article class="card span-4" data-rank-card="subsystem">
               <div class="chart-head"><h3>Top Subsystems</h3><div class="metric-toggle" data-chart-toggle="subsystem"><button class="btn active" data-mode="events">Events</button><button class="btn" data-mode="duration">Duration</button></div><button class="view-all" data-chart-expand="subsystemChart" data-chart-title="Top Subsystems">Expand</button></div>
               <div class="micro">Top 5 by events. Click Expand for full list.</div><div class="chart-area"><canvas id="subsystemChart"></canvas></div>
             </article>
-            <article class="card span-6" data-rank-card="version">
+            <article class="card span-4" data-rank-card="version">
               <div class="chart-head"><h3>Top Versions</h3><div class="metric-toggle" data-chart-toggle="version"><button class="btn active" data-mode="events">Events</button><button class="btn" data-mode="duration">Duration</button><button class="btn" data-mode="perPress">Per Press</button></div><button class="view-all" data-chart-expand="versionChart" data-chart-title="Top Versions">Expand</button></div>
               <div class="micro">Top 5 versions by events. Click Expand for full list.</div>
               <div class="chart-area"><canvas id="versionChart"></canvas></div>
             </article>
 
-            <article class="card span-6" data-rank-card="alert">
-              <div class="chart-head"><h3>Top Errors</h3><div class="metric-toggle" data-chart-toggle="alert"><button class="btn active" data-mode="events">Events</button><button class="btn" data-mode="duration">Duration</button></div><button class="view-all" data-chart-expand="alertChart" data-chart-title="Top Errors">Expand</button></div>
-              <div class="micro">Top 5 by recurring events. Click Expand for full list.</div><div class="chart-area"><canvas id="alertChart"></canvas></div>
+            <article class="card span-4" data-rank-card="alert">
+              <div class="chart-head"><h3>Repeated Errors</h3><div class="metric-toggle" data-chart-toggle="alert"><button class="btn active" data-mode="events">Events</button><button class="btn" data-mode="duration">Duration</button></div><button class="view-all" data-chart-expand="alertChart" data-chart-title="Top Errors">Expand</button></div>
+              <div class="micro">Top 5 repeated errors with severity and impact progress.</div>
+              <div id="repeatedErrorsList" class="repeated-errors-list"></div>
+              <div class="chart-area hidden"><canvas id="alertChart"></canvas></div>
             </article>
-            <article class="card span-6">
+            <article class="card span-4">
               <div class="chart-head"><h3>Print Volume</h3><button class="view-all" data-chart-expand="customerVolumeChart" data-chart-title="Print Volume">Expand</button></div>
               <div class="micro" id="customerVolumeNote">Good / waste volume by press.</div>
               <div class="chart-tools"><div class="metric-toggle" id="customerVolumeUnitToggle"><button class="btn active" data-unit="flats">Flats</button><button class="btn" data-unit="sheets">Sheets</button></div><label><input type="checkbox" id="customerVolumeShowWaste" checked /> Show Waste</label><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div>
               <div class="chart-area"><canvas id="customerVolumeChart"></canvas></div>
             </article>
-            <article class="card span-6">
+            <article class="card span-4">
               <div class="chart-head"><h3>Availability Over Time</h3><button class="view-all" data-chart-expand="availabilityByPressChart" data-chart-title="Availability Over Time">Expand</button></div>
               <div class="micro" id="availabilityNote">Availability trend over time. Click Expand for full view.</div>
               <div class="chart-area"><canvas id="availabilityByPressChart"></canvas></div>
@@ -5124,7 +5135,7 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
       modal = document.createElement('div');
       modal.id = 'chartExpandModal';
       modal.className = 'chart-expand-modal';
-      modal.innerHTML = '<div class="chart-expand-panel"><div class="chart-expand-head"><div><h2 id="chartExpandTitle"></h2><p id="chartExpandSubtitle" class="micro"></p></div><div style="display:flex;gap:8px;"><button id="chartExpandViewAll" class="btn secondary" type="button">View all</button><button id="chartExpandClose" class="btn secondary" type="button">Close</button></div></div><div class="chart-expand-canvas-wrap"><canvas id="chartExpandCanvas"></canvas></div></div>';
+      modal.innerHTML = '<div class="chart-expand-panel"><div class="chart-expand-head"><div><h2 id="chartExpandTitle"></h2><p id="chartExpandSubtitle" class="micro"></p></div><div style="display:flex;gap:8px;align-items:center;"><div id="chartExpandControls"></div><button id="chartExpandViewAll" class="btn secondary" type="button">View all</button><button id="chartExpandClose" class="btn secondary" type="button">Close</button></div></div><div class="chart-expand-canvas-wrap"><canvas id="chartExpandCanvas"></canvas></div></div>';
       document.body.appendChild(modal);
       modal.addEventListener('click', e => { if (e.target === modal) closeExpandedChart(); });
       modal.querySelector('#chartExpandClose')?.addEventListener('click', closeExpandedChart);
@@ -5144,6 +5155,23 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
       viewAllBtn.onclick = () => { STATE.expandedViewAll[chartKey] = !STATE.expandedViewAll[chartKey]; openExpandedChart(chartId, title); };
     } else if (viewAllBtn) { viewAllBtn.style.display = 'none'; }
     const chosenConfig = (defaultConfig && !STATE.expandedViewAll[chartKey]) ? defaultConfig : expandedConfig;
+    const controlsHost = modal.querySelector('#chartExpandControls');
+    if (controlsHost) {
+      controlsHost.innerHTML = '';
+      const sourceToggle = document.querySelector(`[data-rank-card="${chartKey}"] [data-chart-toggle]`) || document.querySelector(`[data-chart-toggle="${chartKey}"]`);
+      if (sourceToggle) {
+        const clone = sourceToggle.cloneNode(true);
+        clone.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
+          const mode = btn.dataset.mode;
+          if (!mode) return;
+          STATE.metricByChart[chartKey] = mode === 'duration' ? 'downtime' : mode;
+          document.querySelectorAll(`[data-chart-toggle="${chartKey}"] .btn`).forEach(orig => orig.classList.toggle('active', orig.dataset.mode === mode));
+          renderDashboard();
+          openExpandedChart(chartId, title);
+        }));
+        controlsHost.appendChild(clone);
+      }
+    }
     chosenConfig.options = { ...(chosenConfig.options || {}), maintainAspectRatio: false, responsive: true };
     chosenConfig.options.layout = chosenConfig.options.layout || { padding: 12 };
     requestAnimationFrame(() => replaceChart('chartExpandCanvas', chosenConfig));
@@ -5671,6 +5699,33 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     return Number.isFinite(limit) ? rows.slice(0, limit) : rows;
   }
 
+  function renderRepeatedErrorsList(rows = [], metric = 'events') {
+    const host = document.getElementById('repeatedErrorsList');
+    if (!host) return;
+    if (!rows.length) {
+      host.innerHTML = '<div class="micro">No repeated errors available for this selection.</div>';
+      return;
+    }
+    const values = rows.map(r => metric === 'downtime' ? Number(r.metrics?.durationSeconds || r.totalDurationSeconds || r.downtime || 0) : Number(r.metrics?.events || r.events || 0));
+    const max = Math.max(1, ...values);
+    host.innerHTML = rows.slice(0, 5).map((row, idx) => {
+      const events = Number(row.metrics?.events || row.events || 0);
+      const duration = Number(row.metrics?.durationSeconds || row.totalDurationSeconds || row.downtime || 0);
+      const value = metric === 'downtime' ? duration : events;
+      const pct = Math.max(6, Math.round((value / max) * 100));
+      const color = row.impactColor || (idx < 2 ? '#ff6a63' : idx < 4 ? '#ffb24f' : '#5fd28d');
+      return `<div class="repeated-error-row" title="${esc(row.name || 'Unspecified error')}">
+        <span class="repeated-error-dot" style="background:${color}"></span>
+        <div class="repeated-error-main">
+          <div class="repeated-error-name">${esc(row.name || 'Unspecified error')}</div>
+          <div class="repeated-error-meta">${metric === 'downtime' ? `Duration ${esc(formatClockDuration(duration))}` : `${events.toLocaleString()} events`} · ${esc(formatClockDuration(duration))}</div>
+          <div class="repeated-error-bar"><span style="width:${pct}%"></span></div>
+        </div>
+        <strong>${metric === 'downtime' ? esc(formatDurationCompact(duration)) : events.toLocaleString()}</strong>
+      </div>`;
+    }).join('');
+  }
+
   function rankingAxisTitles(key, metric) {
     if (key === 'subsystem') return { x: metric === 'downtime' ? 'Valid Duration' : 'Total Events', y: 'Subsystem' };
     if (key === 'version') {
@@ -5887,6 +5942,7 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
         }
       }])
     });
+    if (key === 'alert') renderRepeatedErrorsList(sorted, metric);
     if (!rendered && !view.length) setRankingChartEmptyState(key, 'No ranking data available for current filters/metric.');
 
     // Preview and expanded use identical aggregation rows; only slicing differs.
@@ -5976,13 +6032,14 @@ function renderPressValidationNote(diagnostics) {
   }
 
   function computeZoneHighlightRows(rows = []) {
-    const critical = rows.filter(r => r.zoneKey === 'critical');
-    const inefficient = rows.filter(r => r.zoneKey === 'inefficient');
-    const base = [...critical, ...inefficient];
-    const seen = new Set(base.map(r => r.name));
-    const remaining = rows.filter(r => !seen.has(r.name)).sort((a,b)=>(b.severityScore||0)-(a.severityScore||0));
+    const byScore = arr => [...arr].sort((a,b)=>(b.severityScore||0)-(a.severityScore||0));
+    const zones = ['critical','inefficient','noisy','stable'];
+    const seeded = [];
+    zones.forEach(zone => seeded.push(...byScore(rows.filter(r => r.zoneKey === zone)).slice(0, 2)));
+    const seen = new Set(seeded.map(r => r.name));
+    const remaining = byScore(rows).filter(r => !seen.has(r.name));
     const cap = 12;
-    return [...base, ...remaining.slice(0, Math.max(0, cap - base.length))];
+    return [...seeded, ...remaining.slice(0, Math.max(0, cap - seeded.length))];
   }
 
   function renderPressImpactScatter(model) {
