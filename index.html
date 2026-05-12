@@ -1202,6 +1202,11 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
               <div class="micro" id="availabilityNote">Availability trend over time. Click Expand for full view.</div>
               <div class="chart-area"><canvas id="availabilityByPressChart"></canvas></div>
             </article>
+            <article class="card span-3" id="recommendedActionsRail">
+              <div class="chart-head"><h3>Recommended Actions</h3></div>
+              <div class="micro">Top 3 actions prioritized for immediate operational impact.</div>
+              <div class="action-list" role="list"></div>
+            </article>
             <article class="card span-12 compact-impact-card" id="riskSection"></article>
           </section>
 
@@ -4821,14 +4826,19 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
           ${bars('yellow')}
         </article>
         <article class="insight-tile">
-          <div class="tile-label">⌘ Recommended Actions</div>
-          <div class="action-list" role="list">
-            <div class="action-item" title="Fix ${esc(topSubsystem)} on ${esc(topPress)}"><span style="color:#ff4b4b;">⌘</span><span><strong>Fix ${esc(topSubsystem)} on ${esc(topPress)}</strong><small>Potential downtime reduction: 15–20% based on current event and downtime concentration.</small></span><span class="sev">HIGH</span></div>
-            <div class="action-item" title="Resolve recurring ${esc(topError)} events"><span style="color:#ffc400;">▣</span><span><strong>Resolve recurring ${esc(topError)}</strong><small>${topEvents.toLocaleString()} repeating events are elevating operator interruptions and recovery time.</small></span><span class="sev">HIGH</span></div>
-            <div class="action-item" title="Monitor ${esc(topPress)} trend"><span style="color:#66b2ff;">◎</span><span><strong>Stabilize ${esc(topPress)} during peak shifts</strong><small>Watch event spikes and intervene before alerts cascade across related subsystems.</small></span><span class="sev med">MEDIUM</span></div>
-          </div>
+          <div class="tile-label">⌘ Action Focus</div>
+          <div class="tile-micro">Execution priorities are placed in the right rail to keep insight cards compact and aligned.</div>
+          <div class="tile-micro" style="margin-top:16px;">Focus on quick containment, recurring error reduction, and shift-stability execution.</div>
+          ${bars('yellow')}
         </article>
       </div>`;
+    const actionRail = document.querySelector('#recommendedActionsRail .action-list');
+    if (actionRail) {
+      actionRail.innerHTML = `
+        <div class="action-item" title="Fix ${esc(topSubsystem)} on ${esc(topPress)}"><span style="color:#ff4b4b;">⌘</span><span><strong>Fix ${esc(topSubsystem)} on ${esc(topPress)}</strong><small>Potential downtime reduction: 15–20% based on current event and downtime concentration.</small></span><span class="sev">HIGH</span></div>
+        <div class="action-item" title="Resolve recurring ${esc(topError)} events"><span style="color:#ffc400;">▣</span><span><strong>Resolve recurring ${esc(topError)}</strong><small>${topEvents.toLocaleString()} repeating events are elevating operator interruptions and recovery time.</small></span><span class="sev">HIGH</span></div>
+        <div class="action-item" title="Monitor ${esc(topPress)} trend"><span style="color:#66b2ff;">◎</span><span><strong>Stabilize ${esc(topPress)} during peak shifts</strong><small>Watch event spikes and intervene before alerts cascade across related subsystems.</small></span><span class="sev med">MEDIUM</span></div>`;
+    }
   }
 
   function renderRiskSection(riskRows) {
@@ -9040,30 +9050,36 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
   .command-grid .card[data-rank-card="alert"] { grid-column: 3 !important; }
   .command-grid > .card:has(#customerVolumeChart) { grid-column: 1 !important; }
   .command-grid > .card:has(#availabilityByPressChart) { grid-column: 2 !important; }
+  #recommendedActionsRail { grid-column: 3 !important; }
   .command-grid > .card:has(#heatmapChart) { grid-column: 1 / -1 !important; }
 
   .chart-card,
   .command-grid .card { min-width: 320px !important; }
   .chart-card { min-width: 0 !important; }
-  .command-grid .chart-area { height: 300px !important; min-height: 300px !important; }
+  .command-grid .card { display:flex !important; flex-direction:column !important; min-height: 312px !important; padding:12px !important; }
+  .command-grid .micro { margin-bottom:6px !important; }
+  .command-grid .chart-area { flex:1 1 auto !important; height: 312px !important; min-height: 312px !important; }
   .command-grid > .card:has(#customerVolumeChart) .chart-area,
-  .command-grid > .card:has(#availabilityByPressChart) .chart-area { height: 320px !important; min-height: 320px !important; }
-  .command-grid > .card:has(#heatmapChart) .chart-area { height: 360px !important; min-height: 360px !important; }
+  .command-grid > .card:has(#availabilityByPressChart) .chart-area { height: 334px !important; min-height: 334px !important; }
+  .command-grid > .card:has(#heatmapChart) .chart-area { height: 390px !important; min-height: 390px !important; }
+  .command-grid .card[data-rank-card="alert"] { min-height: 312px !important; }
+  .command-grid .card[data-rank-card="alert"] .repeated-errors-list { flex:1 1 auto !important; margin-top:6px !important; }
+  #recommendedActionsRail { min-height: 334px !important; }
+  #recommendedActionsRail .action-list { display:grid !important; gap:10px !important; overflow:visible !important; max-height:none !important; margin-top:8px !important; }
 
   .insight-grid {
     display: grid !important;
-    grid-template-columns: .8fr 1.25fr 1.25fr 1.25fr 2fr !important;
-    gap: 12px !important;
+    grid-template-columns: .8fr 1.2fr 1.2fr 1.2fr 1.2fr !important;
+    gap: 10px !important;
     align-items: stretch !important;
   }
   .action-list {
     overflow: visible !important;
     max-height: none !important;
   }
-  .insight-tile:last-child {
-    min-height: 220px !important;
-    height: auto !important;
-  }
+  .insight-tile, .insight-tile:last-child { min-height: 132px !important; height: 132px !important; }
+  #executiveSummaryCard { margin-bottom: 2px !important; }
+  .ai-panel { height:auto !important; min-height:0 !important; max-height:calc(100vh - 24px) !important; }
 
   @media (max-width: 1180px) {
     .command-shell { grid-template-columns: 1fr !important; }
