@@ -911,17 +911,41 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
 @media(max-width:980px){.command-shell{display:block!important}.command-sidebar{display:none!important}.command-header{grid-template-columns:1fr!important}.command-kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}.command-grid .span-4,.command-grid .span-8,.command-grid .span-12{grid-column:span 12!important}.insight-grid{grid-template-columns:1fr!important}.insight-tile{height:auto!important;min-height:120px!important}}
 
 
-/* KPI icon normalization: semantic inline SVG icons */
+/* KPI icon normalization: enterprise-grade semantic inline SVG icons */
 .command-kpis .kpi:before{content:none!important;display:none!important}
-.command-kpis .kpi{padding-left:62px!important}
-.command-kpis .kpi .kpi-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:999px;display:flex;align-items:center;justify-content:center;line-height:0;flex-shrink:0;background:rgba(20,137,255,.14);color:#34c5ff;box-shadow:0 0 0 1px rgba(106,171,238,.15),0 0 22px rgba(20,137,255,.14)}
-.command-kpis .kpi .kpi-icon svg{display:block;width:25px;height:25px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
-.command-kpis .kpi[data-kpi-metric="downtime"] .kpi-icon{background:rgba(255,75,75,.16);color:#ff7a7a;box-shadow:0 0 0 1px rgba(255,116,116,.18),0 0 22px rgba(255,75,75,.18)}
-.command-kpis .kpi[data-kpi-metric="mttr"] .kpi-icon{background:rgba(255,159,26,.16);color:#ffb95b;box-shadow:0 0 0 1px rgba(255,175,74,.18),0 0 22px rgba(255,159,26,.16)}
-.command-kpis .kpi[data-kpi-metric="mtbf"] .kpi-icon{background:rgba(50,213,131,.16);color:#52e7a1;box-shadow:0 0 0 1px rgba(80,221,150,.18),0 0 22px rgba(50,213,131,.16)}
-.command-kpis .kpi[data-kpi-metric="volume"] .kpi-icon{background:rgba(155,92,255,.16);color:#bf9bff;box-shadow:0 0 0 1px rgba(185,139,255,.18),0 0 22px rgba(155,92,255,.16)}
-.command-kpis .kpi[data-kpi-metric="wasteRatio"] .kpi-icon{background:rgba(255,196,0,.16);color:#ffd64f;box-shadow:0 0 0 1px rgba(255,213,79,.2),0 0 22px rgba(255,196,0,.16)}
-.command-kpis .kpi[data-kpi-metric="availability"] .kpi-icon{background:rgba(39,212,255,.16);color:#62e6ff;box-shadow:0 0 0 1px rgba(79,224,255,.18),0 0 22px rgba(39,212,255,.16)}
+.command-kpis .kpi{padding-left:66px!important}
+.command-kpis .kpi .kpi-icon{
+  --kpi-rgb:20,137,255;
+  --kpi-icon-bg-alpha:.17;
+  --kpi-border-alpha:.42;
+  --kpi-glow-alpha:.2;
+  --kpi-inner-alpha:.08;
+  --kpi-icon-color:#5dd8ff;
+  position:absolute;left:12px;top:50%;transform:translateY(-50%);
+  width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;
+  line-height:0;flex-shrink:0;color:var(--kpi-icon-color);
+  background:
+    radial-gradient(110% 110% at 26% 22%, rgba(255,255,255,.12), rgba(255,255,255,0) 60%),
+    linear-gradient(180deg, rgba(var(--kpi-rgb), calc(var(--kpi-icon-bg-alpha) + .03)), rgba(var(--kpi-rgb), var(--kpi-icon-bg-alpha)));
+  border:1px solid rgba(var(--kpi-rgb), var(--kpi-border-alpha));
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.16),
+    inset 0 0 0 1px rgba(255,255,255,var(--kpi-inner-alpha)),
+    0 0 0 1px rgba(var(--kpi-rgb), .14),
+    0 8px 18px rgba(0,0,0,.3),
+    0 0 26px rgba(var(--kpi-rgb), var(--kpi-glow-alpha));
+}
+.command-kpis .kpi .kpi-icon svg{
+  display:block;width:22px;height:22px;stroke:currentColor;fill:none;
+  stroke-width:2.25;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke
+}
+.command-kpis .kpi[data-kpi-metric="events"] .kpi-icon{--kpi-rgb:20,137,255;--kpi-icon-color:#58d2ff}
+.command-kpis .kpi[data-kpi-metric="downtime"] .kpi-icon{--kpi-rgb:255,75,75;--kpi-icon-color:#ff8787}
+.command-kpis .kpi[data-kpi-metric="mttr"] .kpi-icon{--kpi-rgb:255,159,26;--kpi-icon-color:#ffc36d;--kpi-border-alpha:.5}
+.command-kpis .kpi[data-kpi-metric="mtbf"] .kpi-icon{--kpi-rgb:50,213,131;--kpi-icon-color:#61ecad;--kpi-border-alpha:.5}
+.command-kpis .kpi[data-kpi-metric="volume"] .kpi-icon{--kpi-rgb:155,92,255;--kpi-icon-color:#c8a8ff}
+.command-kpis .kpi[data-kpi-metric="wasteRatio"] .kpi-icon{--kpi-rgb:255,196,0;--kpi-icon-color:#ffdc61}
+.command-kpis .kpi[data-kpi-metric="availability"] .kpi-icon{--kpi-rgb:39,212,255;--kpi-icon-color:#74ecff}
 
 </style>
 </head>
