@@ -922,30 +922,35 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
   --kpi-inner-alpha:.08;
   --kpi-icon-color:#5dd8ff;
   position:absolute;left:12px;top:50%;transform:translateY(-50%);
-  width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;
+  width:46px;height:46px;border-radius:15px;display:flex;align-items:center;justify-content:center;
   line-height:0;flex-shrink:0;color:var(--kpi-icon-color);
   background:
     radial-gradient(110% 110% at 26% 22%, rgba(255,255,255,.12), rgba(255,255,255,0) 60%),
     linear-gradient(180deg, rgba(var(--kpi-rgb), calc(var(--kpi-icon-bg-alpha) + .03)), rgba(var(--kpi-rgb), var(--kpi-icon-bg-alpha)));
   border:1px solid rgba(var(--kpi-rgb), var(--kpi-border-alpha));
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.16),
+    inset 0 1px 0 rgba(255,255,255,.18),
+    inset 0 -8px 14px rgba(0,0,0,.14),
     inset 0 0 0 1px rgba(255,255,255,var(--kpi-inner-alpha)),
     0 0 0 1px rgba(var(--kpi-rgb), .14),
-    0 8px 18px rgba(0,0,0,.3),
-    0 0 26px rgba(var(--kpi-rgb), var(--kpi-glow-alpha));
+    0 10px 22px rgba(0,0,0,.34),
+    0 0 30px rgba(var(--kpi-rgb), var(--kpi-glow-alpha));
 }
 .command-kpis .kpi .kpi-icon svg{
   display:block;width:22px;height:22px;stroke:currentColor;fill:none;
   stroke-width:2.25;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke
 }
+.command-kpis .kpi .kpi-icon .mttr-icon{width:24px;height:24px}
+.command-kpis .kpi .kpi-icon .mttr-clock{opacity:.95}
+.command-kpis .kpi .kpi-icon .mttr-wrench{opacity:1}
 .command-kpis .kpi[data-kpi-metric="events"] .kpi-icon{--kpi-rgb:20,137,255;--kpi-icon-color:#58d2ff}
 .command-kpis .kpi[data-kpi-metric="downtime"] .kpi-icon{--kpi-rgb:255,75,75;--kpi-icon-color:#ff8787}
-.command-kpis .kpi[data-kpi-metric="mttr"] .kpi-icon{--kpi-rgb:255,159,26;--kpi-icon-color:#ffc36d;--kpi-border-alpha:.5}
-.command-kpis .kpi[data-kpi-metric="mtbf"] .kpi-icon{--kpi-rgb:50,213,131;--kpi-icon-color:#61ecad;--kpi-border-alpha:.5}
+.command-kpis .kpi[data-kpi-metric="mttr"] .kpi-icon{--kpi-rgb:255,159,26;--kpi-icon-color:#ffc36d;--kpi-border-alpha:.56;--kpi-glow-alpha:.34}
+.command-kpis .kpi[data-kpi-metric="mtbf"] .kpi-icon{--kpi-rgb:50,213,131;--kpi-icon-color:#61ecad;--kpi-border-alpha:.54;--kpi-glow-alpha:.30}
 .command-kpis .kpi[data-kpi-metric="volume"] .kpi-icon{--kpi-rgb:155,92,255;--kpi-icon-color:#c8a8ff}
 .command-kpis .kpi[data-kpi-metric="wasteRatio"] .kpi-icon{--kpi-rgb:255,196,0;--kpi-icon-color:#ffdc61}
 .command-kpis .kpi[data-kpi-metric="availability"] .kpi-icon{--kpi-rgb:39,212,255;--kpi-icon-color:#74ecff}
+.command-kpis .kpi:hover .kpi-icon{transform:translateY(-50%) scale(1.015);filter:saturate(1.07)}
 
 </style>
 </head>
@@ -4658,7 +4663,7 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     const kpiIconSvg = (metricKey) => ({
       events: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>',
       downtime: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><rect x="9" y="9" width="2.5" height="6" rx=".6"/><rect x="12.5" y="9" width="2.5" height="6" rx=".6"/></svg>',
-      mttr: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 2h4"/><path d="M12 14v-4"/><path d="M12 14h5"/><path d="M12 22a10 10 0 1 0-7-2.9"/><path d="m1 14 4-4 4 4"/></svg>',
+      mttr: '<svg class="mttr-icon" viewBox="0 0 24 24" aria-hidden="true"><g class="mttr-wrench"><path d="m14.3 6.4 3.2 3.2"/><path d="m16.2 3.5a3.3 3.3 0 0 0-3.3 4.3L5.8 15a2.6 2.6 0 0 0 3.6 3.6l7.2-7.1a3.3 3.3 0 0 0 4.3-3.3"/></g><g class="mttr-clock"><circle cx="8.2" cy="8.2" r="3.6"/><path d="M8.2 6.5v1.9l1.2.7"/></g></svg>',
       mtbf: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 12h-2.5l-2 7-4-14-3 10-2-3H2"/></svg>',
       volume: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12.83 2.18 7 4a2 2 0 0 1 0 3.46l-7 4a2 2 0 0 1-1.98 0l-7-4a2 2 0 0 1 0-3.46l7-4a2 2 0 0 1 1.98 0Z"/><path d="m3.85 10.82 7 4a2 2 0 0 0 1.98 0l7-4"/><path d="m3.85 15.82 7 4a2 2 0 0 0 1.98 0l7-4"/></svg>',
       wasteRatio: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>',
