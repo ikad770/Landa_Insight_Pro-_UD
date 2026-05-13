@@ -9000,29 +9000,33 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
 })();
 </script>
 <style id="final-layout-repair">
-  /* Final surgical layout overrides */
+  /* Final consolidated layout source-of-truth */
   .command-shell {
     display: grid !important;
-    grid-template-columns: 240px minmax(0, 1fr) !important;
-    gap: 16px !important;
+    grid-template-columns: 250px minmax(0, 1fr) !important;
+    gap: 14px !important;
+    padding: 12px !important;
+    min-height: 100vh !important;
     align-items: start !important;
+    overflow-x: hidden !important;
   }
   .command-layout {
     display: grid !important;
     grid-template-columns: minmax(0, 1fr) 340px !important;
-    gap: 16px !important;
+    gap: 14px !important;
     align-items: start !important;
   }
   .command-main { min-width: 0 !important; }
 
   .command-sidebar {
-    width: 240px !important;
-    min-width: 240px !important;
-    max-width: 240px !important;
+    width: 250px !important;
+    min-width: 250px !important;
+    max-width: 250px !important;
     position: sticky !important;
     top: 12px !important;
     height: calc(100vh - 24px) !important;
-    overflow: hidden !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
     z-index: 20 !important;
   }
   .command-sidebar:not(.collapsed) .side-label,
@@ -9036,13 +9040,15 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     top: 12px !important;
     height: calc(100vh - 24px) !important;
     min-height: calc(100vh - 24px) !important;
+    max-height: calc(100vh - 24px) !important;
+    overflow: auto !important;
     align-self: start !important;
   }
 
   .command-grid {
     display: grid !important;
-    grid-template-columns: minmax(360px, 1fr) minmax(360px, 1fr) 340px !important;
-    gap: 14px !important;
+    grid-template-columns: minmax(380px, 1fr) minmax(380px, 1fr) 340px !important;
+    gap: 12px !important;
     align-items: stretch !important;
   }
   .command-grid .card[data-rank-card="subsystem"] { grid-column: 1 !important; }
@@ -9052,11 +9058,20 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
   .command-grid > .card:has(#availabilityByPressChart) { grid-column: 2 !important; }
   #recommendedActionsRail { grid-column: 3 !important; }
   .command-grid > .card:has(#heatmapChart) { grid-column: 1 / -1 !important; }
+  #riskSection { grid-column: 1 / -1 !important; }
 
   .chart-card,
   .command-grid .card { min-width: 320px !important; }
   .chart-card { min-width: 0 !important; }
-  .command-grid .card { display:flex !important; flex-direction:column !important; min-height: 312px !important; padding:12px !important; }
+  .command-grid .card,
+  .insight-tile,
+  .ai-panel,
+  .command-card {
+    border-radius: 14px !important;
+    border: 1px solid rgba(121, 174, 235, .20) !important;
+    background: linear-gradient(180deg, rgba(9, 23, 40, .95), rgba(6, 17, 31, .93)) !important;
+  }
+  .command-grid .card { display:flex !important; flex-direction:column !important; min-height: 312px !important; padding:14px !important; }
   .command-grid .micro { margin-bottom:6px !important; }
   .command-grid .chart-area { flex:1 1 auto !important; height: 312px !important; min-height: 312px !important; }
   .command-grid > .card:has(#customerVolumeChart) .chart-area,
@@ -9069,7 +9084,7 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
 
   .insight-grid {
     display: grid !important;
-    grid-template-columns: .8fr 1.2fr 1.2fr 1.2fr 1.2fr !important;
+    grid-template-columns: .75fr 1.2fr 1.2fr 1.2fr 2fr !important;
     gap: 10px !important;
     align-items: stretch !important;
   }
@@ -9077,9 +9092,10 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     overflow: visible !important;
     max-height: none !important;
   }
-  .insight-tile, .insight-tile:last-child { min-height: 132px !important; height: 132px !important; }
+  .insight-tile, .insight-tile:last-child { min-height: 140px !important; height: 140px !important; }
+  .spark { height: 24px !important; margin-top: auto !important; }
+  .spark span { width: 5px !important; border-radius: 4px 4px 0 0 !important; }
   #executiveSummaryCard { margin-bottom: 2px !important; }
-  .ai-panel { height:auto !important; min-height:0 !important; max-height:calc(100vh - 24px) !important; }
 
   @media (max-width: 1180px) {
     .command-shell { grid-template-columns: 1fr !important; }
