@@ -9000,54 +9000,81 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
 })();
 </script>
 <style id="final-layout-repair">
-  /* Final consolidated layout source-of-truth */
+  /* Final consolidated layout source-of-truth: enterprise command-center shell */
   .command-shell {
+    --shell-gap: 16px;
+    --sidebar-w: clamp(208px, 13vw, 248px);
+    --ai-w: clamp(300px, 20vw, 352px);
     display: grid !important;
-    grid-template-columns: 250px minmax(0, 1fr) !important;
-    gap: 14px !important;
-    padding: 12px !important;
+    grid-template-columns: var(--sidebar-w) minmax(0, 1fr) !important;
+    gap: var(--shell-gap) !important;
+    padding: 16px !important;
     min-height: 100vh !important;
     align-items: start !important;
-    overflow-x: hidden !important;
+    overflow-x: clip !important;
+    max-width: 1920px;
+    margin: 0 auto;
   }
   .command-layout {
     display: grid !important;
-    grid-template-columns: minmax(0, 1fr) 340px !important;
-    gap: 14px !important;
+    grid-template-columns: minmax(0, 1fr) var(--ai-w) !important;
+    gap: var(--shell-gap) !important;
     align-items: start !important;
+    min-width: 0 !important;
   }
-  .command-main { min-width: 0 !important; }
+  .command-main { min-width: 0 !important; display:grid !important; gap:12px !important; }
 
   .command-sidebar {
-    width: 250px !important;
-    min-width: 250px !important;
-    max-width: 250px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
     position: sticky !important;
-    top: 12px !important;
-    height: calc(100vh - 24px) !important;
+    top: 0 !important;
+    height: 100vh !important;
     overflow-x: hidden !important;
     overflow-y: auto !important;
     z-index: 20 !important;
+    border: 1px solid rgba(121, 174, 235, .18) !important;
+    background: linear-gradient(180deg, rgba(10, 22, 38, .985), rgba(6, 15, 27, .95)) !important;
   }
   .command-sidebar:not(.collapsed) .side-label,
   .command-sidebar:not(.collapsed) .new-pill,
   .command-sidebar:not(.collapsed) .side-toggle span { display: inline !important; }
 
   .ai-panel {
-    width: 340px !important;
-    min-width: 340px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
     position: sticky !important;
-    top: 12px !important;
-    height: calc(100vh - 24px) !important;
-    min-height: calc(100vh - 24px) !important;
-    max-height: calc(100vh - 24px) !important;
-    overflow: auto !important;
+    top: 16px !important;
+    max-height: calc(100vh - 32px) !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
     align-self: start !important;
+    padding: 14px !important;
   }
+
+  .command-header { gap: 14px !important; margin-bottom: 2px !important; }
+  .command-title h1 { letter-spacing: -.03em !important; }
+  .command-title .micro { color: #9eb2ce !important; }
+
+  .command-kpis { gap: 12px !important; }
+  .command-kpis .kpi {
+    border-radius: 14px !important;
+    min-height: 96px !important;
+    padding: 14px 12px 13px 60px !important;
+    border: 1px solid rgba(121, 174, 235, .24) !important;
+    background: linear-gradient(160deg, rgba(12, 30, 50, .97), rgba(7, 19, 33, .93)) !important;
+    box-shadow: 0 18px 40px rgba(0,0,0,.27), inset 0 0 0 1px rgba(255,255,255,.018) !important;
+  }
+  .command-kpis .kpi:hover { transform: translateY(-2px); border-color: rgba(132,197,255,.45) !important; }
+  .command-kpis .k { font-size: .73rem !important; font-weight: 760 !important; }
+  .command-kpis .v { font-size: clamp(1.08rem, 1.1vw, 1.4rem) !important; font-weight: 850 !important; }
+  .command-kpis .kpi-sub { margin-top: 10px !important; line-height: 1.3 !important; }
 
   .command-grid {
     display: grid !important;
-    grid-template-columns: minmax(380px, 1fr) minmax(380px, 1fr) 340px !important;
+    grid-template-columns: minmax(360px, 1fr) minmax(360px, 1fr) minmax(290px, .86fr) !important;
     gap: 12px !important;
     align-items: stretch !important;
   }
@@ -9057,66 +9084,61 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
   .command-grid > .card:has(#customerVolumeChart) { grid-column: 1 !important; }
   .command-grid > .card:has(#availabilityByPressChart) { grid-column: 2 !important; }
   #recommendedActionsRail { grid-column: 3 !important; }
-  .command-grid > .card:has(#heatmapChart) { grid-column: 1 / -1 !important; }
+  .command-grid > .card:has(#heatmapChart),
   #riskSection { grid-column: 1 / -1 !important; }
 
-  .chart-card,
-  .command-grid .card { min-width: 320px !important; }
-  .chart-card { min-width: 0 !important; }
   .command-grid .card,
   .insight-tile,
   .ai-panel,
   .command-card {
     border-radius: 14px !important;
     border: 1px solid rgba(121, 174, 235, .20) !important;
-    background: linear-gradient(180deg, rgba(9, 23, 40, .95), rgba(6, 17, 31, .93)) !important;
+    background: linear-gradient(180deg, rgba(9, 23, 40, .96), rgba(6, 17, 31, .94)) !important;
+    box-shadow: 0 18px 42px rgba(0,0,0,.25), inset 0 0 0 1px rgba(255,255,255,.015) !important;
   }
   .command-grid .card { display:flex !important; flex-direction:column !important; min-height: 312px !important; padding:14px !important; }
-  .command-grid .micro { margin-bottom:6px !important; }
-  .command-grid .chart-area { flex:1 1 auto !important; height: 312px !important; min-height: 312px !important; }
+  .command-grid .chart-head { margin-bottom: 8px !important; }
+  .command-grid .chart-head h3 { font-size: 1rem !important; font-weight: 780 !important; }
+  .command-grid .micro { margin-bottom:6px !important; color:#9fb3cd !important; }
+  .command-grid .chart-area { flex:1 1 auto !important; height: 308px !important; min-height: 308px !important; }
   .command-grid > .card:has(#customerVolumeChart) .chart-area,
-  .command-grid > .card:has(#availabilityByPressChart) .chart-area { height: 334px !important; min-height: 334px !important; }
+  .command-grid > .card:has(#availabilityByPressChart) .chart-area { height: 330px !important; min-height: 330px !important; }
   .command-grid > .card:has(#heatmapChart) .chart-area { height: 390px !important; min-height: 390px !important; }
-  .command-grid .card[data-rank-card="alert"] { min-height: 312px !important; }
   .command-grid .card[data-rank-card="alert"] .repeated-errors-list { flex:1 1 auto !important; margin-top:6px !important; }
-  #recommendedActionsRail { min-height: 334px !important; }
   #recommendedActionsRail .action-list { display:grid !important; gap:10px !important; overflow:visible !important; max-height:none !important; margin-top:8px !important; }
 
   .insight-grid {
     display: grid !important;
-    grid-template-columns: .75fr 1.2fr 1.2fr 1.2fr 2fr !important;
+    grid-template-columns: .75fr 1.16fr 1.16fr 1.16fr 1.95fr !important;
     gap: 10px !important;
     align-items: stretch !important;
   }
-  .action-list {
-    overflow: visible !important;
-    max-height: none !important;
-  }
-  .insight-tile, .insight-tile:last-child { min-height: 140px !important; height: 140px !important; }
-  .spark { height: 24px !important; margin-top: auto !important; }
-  .spark span { width: 5px !important; border-radius: 4px 4px 0 0 !important; }
-  #executiveSummaryCard { margin-bottom: 2px !important; }
+  .insight-tile, .insight-tile:last-child { min-height: 142px !important; height: 142px !important; }
 
+  @media (max-width: 1500px) {
+    .command-shell { --ai-w: clamp(268px, 22vw, 300px); --shell-gap: 12px; }
+    .command-layout { grid-template-columns: minmax(0, 1fr) var(--ai-w) !important; }
+    .command-kpis { grid-template-columns: repeat(4, minmax(0,1fr)) !important; }
+    .insight-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+    .insight-tile:last-child { grid-column: 1 / -1; }
+  }
   @media (max-width: 1180px) {
     .command-shell { grid-template-columns: 1fr !important; }
     .command-sidebar { display: none !important; }
     .command-layout { grid-template-columns: 1fr !important; }
     .ai-panel {
-      width: 100% !important;
-      min-width: 0 !important;
       position: relative !important;
       top: auto !important;
+      max-height: none !important;
       height: auto !important;
-      min-height: 0 !important;
     }
     .command-grid { grid-template-columns: repeat(2, minmax(320px, 1fr)) !important; }
-    .command-grid > .card:has(#heatmapChart) { grid-column: 1 / -1 !important; }
-    .insight-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
-    .insight-tile:last-child { grid-column: 1 / -1; }
   }
   @media (max-width: 760px) {
+    .command-shell { padding: 10px !important; }
     .command-grid { grid-template-columns: minmax(0, 1fr) !important; }
     .command-grid .card { min-width: 0 !important; }
+    .command-kpis { grid-template-columns: repeat(2,minmax(0,1fr)) !important; }
     .insight-grid { grid-template-columns: 1fr !important; }
   }
 </style>
