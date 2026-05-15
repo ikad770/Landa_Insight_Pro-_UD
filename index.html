@@ -117,11 +117,12 @@
     .press-chart-area { position:relative; height:320px; min-height:320px; }
     .press-chart-area.primary { height:500px; min-height:500px; }
     .zone-list { margin:8px 0 0; display:grid; gap:8px; max-height:420px; overflow:auto; }
-    .zone-row { border:1px solid rgba(255,255,255,.1); border-radius:10px; padding:9px; background:rgba(255,255,255,.02); }
-    .zone-critical { border-color:rgba(243,107,99,.45); background:rgba(243,107,99,.1); }
-    .zone-inefficient { border-color:rgba(240,177,101,.45); background:rgba(240,177,101,.1); }
-    .zone-noisy { border-color:rgba(111,140,255,.45); background:rgba(111,140,255,.1); }
-    .zone-stable { border-color:rgba(87,201,138,.45); background:rgba(87,201,138,.1); }
+    .zone-row { border:1px solid rgba(120,170,232,.22); border-left:2px solid rgba(120,170,232,.26); border-radius:10px; padding:10px; background:rgba(6,16,29,.78); box-shadow:inset 0 1px 0 rgba(255,255,255,.015); }
+    .zone-critical { border-left-color:rgba(243,107,99,.72); }
+    .zone-inefficient { border-left-color:rgba(240,177,101,.72); }
+    .zone-noisy { border-left-color:rgba(111,140,255,.76); }
+    .zone-stable { border-left-color:rgba(87,201,138,.76); }
+    .zone-dot{display:inline-block;width:8px;height:8px;border-radius:999px;margin-right:6px;vertical-align:middle}
     .zone-row strong { font-size:.84rem; letter-spacing:.05em; text-transform:uppercase; }
     .zone-row .meta { color:#b9c9e1; font-size:.79rem; margin-top:6px; line-height:1.35; }
     .chart-empty-state { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; color:var(--muted); font-size:.86rem; padding:14px; background:rgba(12,17,25,.35); border:1px dashed rgba(255,255,255,.14); border-radius:10px; pointer-events:none; }
@@ -5530,6 +5531,16 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     return { tier: 'Low', color: SEMANTIC_COLORS.low };
   }
 
+  function shortPressIdFromLabel(label = '') {
+    const raw = String(label || '').trim();
+    if (!raw) return '';
+    const firstToken = raw.split('-')[0]?.trim() || raw;
+    const strict = firstToken.match(/^[A-Za-z]+\d{1,4}$/);
+    if (strict) return strict[0].toUpperCase();
+    const fallback = raw.match(/[A-Za-z]+\d{1,4}/);
+    return fallback ? fallback[0].toUpperCase() : firstToken;
+  }
+
   function buildValidatedPressImpactRows(errorsAgg = []) {
     const byPress = new Map();
     const seenRows = new Set();
@@ -5556,7 +5567,7 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
       }
       seenRows.add(rowKey);
       const pressName = row.canonicalPress || row.press || 'Unspecified';
-      const slot = byPress.get(pressName) || { name: pressName, totalEvents: 0, totalDurationSeconds: 0 };
+      const slot = byPress.get(pressName) || { name: pressName, totalEvents: 0, totalDurationSeconds: 0, dominantErrorMap: new Map(), topSubsystemMap: new Map() };
       const totalEvents = Number(row.totalEvents || 0);
       slot.totalEvents += Number.isFinite(totalEvents) && totalEvents > 0 ? totalEvents : 0;
 
@@ -5573,12 +5584,18 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
         diagnostics.invalidDurationRows += 1;
       }
 
+      const errName = String(row.alertTitle || row.name || row.error || '').trim();
+      if (errName) slot.dominantErrorMap.set(errName, (slot.dominantErrorMap.get(errName) || 0) + totalEvents);
+      const subsystem = String(row.subsystem || '').trim();
+      if (subsystem) slot.topSubsystemMap.set(subsystem, (slot.topSubsystemMap.get(subsystem) || 0) + totalEvents);
       byPress.set(pressName, slot);
     });
 
     const rows = [...byPress.values()].map(slot => {
       const avgDurationSeconds = slot.totalEvents > 0 ? (slot.totalDurationSeconds / slot.totalEvents) : 0;
       const tier = deriveImpactTier({ totalDurationSeconds: slot.totalDurationSeconds, avgDurationSeconds });
+      const dominantError = [...slot.dominantErrorMap.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0] || '';
+      const topSubsystem = [...slot.topSubsystemMap.entries()].sort((a,b)=>b[1]-a[1])[0]?.[0] || '';
       return {
         ...slot,
         events: slot.totalEvents,
@@ -5587,6 +5604,8 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
         avgDuration: avgDurationSeconds,
         impactTier: tier.tier,
         impactColor: tier.color,
+        dominantError,
+        topSubsystem,
       };
     });
 
@@ -6141,12 +6160,12 @@ function renderPressValidationNote(diagnostics) {
       }
     };
 
-    const shortPressId = (name = '') => {
-      const m = String(name).match(/[A-Za-z]\d{1,3}/);
-      return m ? m[0].toUpperCase() : '';
-    };
     const chartRows = rows;
-    const highlightRows = chartRows.slice().sort((a,b)=>(b.severityScore||0)-(a.severityScore||0)).slice(0, Math.max(1, labelLimit));
+    const quadrantPriorityRows = ['critical','inefficient','noisy','stable'].flatMap(zone => chartRows
+      .filter(row => row.zoneKey === zone)
+      .sort((a, b) => (Number(b.totalDurationSeconds || 0) - Number(a.totalDurationSeconds || 0)) || (Number(b.totalEvents || 0) - Number(a.totalEvents || 0)) || ((b.severityScore || 0) - (a.severityScore || 0)))
+      .slice(0, 2));
+    const highlightRows = quadrantPriorityRows.length ? quadrantPriorityRows : chartRows.slice().sort((a,b)=>(b.severityScore||0)-(a.severityScore||0)).slice(0, Math.max(1, labelLimit));
     const labelWhitelist = new Set(highlightRows.map(row => row.name));
     const severityValues = chartRows.map(row => Number(row.severityScore || 0)).filter(Number.isFinite);
     const minSeverity = severityValues.length ? Math.min(...severityValues) : 0;
@@ -6169,12 +6188,14 @@ function renderPressValidationNote(diagnostics) {
             x: row.totalEvents || 0,
             y: row.totalDurationSeconds || 0,
             name: row.name,
-            shortName: shortPressId(row.name),
+            shortName: shortPressIdFromLabel(row.name),
             totalDurationSeconds: row.totalDurationSeconds || 0,
             avgDurationSeconds: row.avgDurationSeconds || 0,
             severityScore: row.severityScore || 0,
             zoneLabel: row.zoneLabel,
-            zoneColor: row.zoneColor
+            zoneColor: row.zoneColor,
+            dominantError: row.dominantError || '',
+            topSubsystem: row.topSubsystem || ''
           })),
           pointRadius: ctx => {
             const row = ctx.raw || {};
@@ -6206,12 +6227,14 @@ function renderPressValidationNote(diagnostics) {
               label: ctx => {
                 const row = ctx.raw || {};
                 return [
-                  `Press: ${row.name || 'Press'}`,
                   `Press ID: ${row.shortName || 'N/A'}`,
+                  `Press: ${row.name || 'Press'}`,
+                  `Quadrant: ${row.zoneLabel || 'N/A'}`,
                   `Total events: ${(row.x || 0).toLocaleString()}`,
                   `Total duration: ${formatClockDuration(row.totalDurationSeconds || 0)}`,
-                  `Avg duration: ${formatClockDuration(row.avgDurationSeconds || 0)}`
-                ];
+                  row.dominantError ? `Dominant error: ${row.dominantError}` : null,
+                  row.topSubsystem ? `Subsystem: ${row.topSubsystem}` : null
+                ].filter(Boolean);
               }
             }
           },
@@ -6266,10 +6289,10 @@ function renderPressValidationNote(diagnostics) {
           points.forEach((point, index) => {
             const row = chartRows[index];
             if (!row || !labelWhitelist.has(row.name)) return;
-            if (!(shortPressId(row.name) || row.name)) return;
+            if (!(shortPressIdFromLabel(row.name) || row.name)) return;
             let x = point.x + 10;
             let y = point.y - 8;
-            const label = showAll ? String(row.name) : (shortPressId(row.name) || String(row.name));
+            const label = shortPressIdFromLabel(row.name) || String(row.name);
             const width = ctx.measureText(label).width;
             for (let i = 0; i < 6; i += 1) {
               const overlap = placed.find(box => !(x + width < box.x || x > box.x + box.w || y < box.y - 12 || y > box.y + 2));
@@ -6303,7 +6326,39 @@ function renderPressValidationNote(diagnostics) {
 
   function renderCompactPressImpactMatrix(model) {
     const prioritizedRows = selectCompactImpactRows(model?.rows || []);
+    validatePressImpactMatrixModel(model, prioritizedRows);
     return renderPressImpactScatterToCanvas('pressImpactScatterChart', model, prioritizedRows, { compact: true, showAll: false, labelLimit: 8 });
+  }
+
+  function validatePressImpactMatrixModel(model, plottedRows = []) {
+    const rows = model?.rows || [];
+    const issues = [];
+    const grouped = new Map();
+    rows.forEach(row => {
+      grouped.set(row.name, (grouped.get(row.name) || 0) + 1);
+      if (!row.name || !Number.isFinite(Number(row.totalEvents)) || !Number.isFinite(Number(row.totalDurationSeconds)) || !row.zoneKey) {
+        issues.push(`Missing required fields for press: ${row.name || 'unknown'}`);
+      }
+      const highEvents = Number(row.totalEvents || 0) >= Number(model?.averages?.avgEvents || 0);
+      const highDuration = Number(row.totalDurationSeconds || 0) >= Number(model?.averages?.avgTotalDuration || 0);
+      const expectedZone = !highEvents && highDuration ? 'critical' : highEvents && highDuration ? 'inefficient' : !highEvents && !highDuration ? 'stable' : 'noisy';
+      if (row.zoneKey !== expectedZone) issues.push(`Quadrant mismatch for ${row.name}: expected ${expectedZone}, got ${row.zoneKey}`);
+    });
+    [...grouped.entries()].forEach(([name, count]) => {
+      if (count !== 1) issues.push(`Duplicate matrix row for ${name}: ${count}`);
+    });
+    if (plottedRows.length && plottedRows.length !== rows.length) {
+      issues.push(`Plotted rows (${plottedRows.length}) do not match model rows (${rows.length})`);
+    }
+    const quadrantTop = ['critical', 'inefficient', 'noisy', 'stable'].flatMap(zone => rows
+      .filter(r => r.zoneKey === zone)
+      .sort((a, b) => (Number(b.totalDurationSeconds || 0) - Number(a.totalDurationSeconds || 0)) || (Number(b.totalEvents || 0) - Number(a.totalEvents || 0)))
+      .slice(0, 2)
+      .map(r => r.name));
+    const plottedSet = new Set(plottedRows.map(r => r.name));
+    quadrantTop.forEach(name => { if (!plottedSet.has(name)) issues.push(`Top-2 zone press missing in plotted set: ${name}`); });
+    if (issues.length) console.warn('[press-impact-matrix-validation]', { issues });
+    return { ok: issues.length === 0, issues };
   }
 
   function renderExpandedZoneHighlights(rows = []) {
@@ -6346,12 +6401,12 @@ function renderPressValidationNote(diagnostics) {
     host.innerHTML = priorities.map(zone => {
       const top = prioritizedRows.filter(row => row.zoneKey === zone.key).slice(0, 2);
       const body = top.length
-        ? top.map(row => `${esc(row.name)} (${Number(row.totalEvents || 0).toLocaleString()} events, ${formatClockDuration(row.totalDurationSeconds || 0)})`).join('<br />')
+        ? top.map(row => `${esc(shortPressIdFromLabel(row.name) || row.name)} (${Number(row.totalEvents || 0).toLocaleString()} events, ${formatClockDuration(row.totalDurationSeconds || 0)})`).join('<br />')
         : 'No presses in this zone.';
       return `
       <article class="zone-row zone-${zone.key}">
         <div>
-          <strong>${esc(zone.label)}</strong>
+          <strong><span class="zone-dot" style="background:${zone.key === 'critical' ? '#f36b63' : zone.key === 'inefficient' ? '#f0b165' : zone.key === 'noisy' ? '#6f8cff' : '#57c98a'}"></span>${esc(zone.label)}</strong>
           <div class="meta">${esc(zone.subtitle)}<br />${body}</div>
         </div>
       </article>`;
