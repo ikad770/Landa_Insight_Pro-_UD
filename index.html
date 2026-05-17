@@ -5152,6 +5152,36 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     };
   }
 
+  function buildStackedTotalLabelPlugin(config = {}) {
+    return {
+      id: 'stacked-total-labels',
+      afterDatasetsDraw(chart) {
+        if (chart.config.type !== 'bar') return;
+        const { ctx, chartArea } = chart;
+        const yScale = chart.scales?.y;
+        const xScale = chart.scales?.x;
+        if (!yScale || !xScale) return;
+        const formatter = config.formatter || (v => formatCompactNumber(v));
+        const values = config.values || [];
+        const topMeta = chart.getDatasetMeta(chart.data.datasets.length - 1);
+        if (!topMeta?.data?.length) return;
+        ctx.save();
+        ctx.fillStyle = config.color || '#e9f2ff';
+        ctx.font = config.font || '700 11px Inter, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        topMeta.data.forEach((el, i) => {
+          const total = Number(values[i] || 0);
+          if (!Number.isFinite(total) || total <= 0) return;
+          const label = formatter(total, i);
+          const y = Math.max(chartArea.top + 12, el.y - 6);
+          ctx.fillText(label, el.x, y);
+        });
+        ctx.restore();
+      }
+    };
+  }
+
   function cloneChartConfig(value) {
     if (Array.isArray(value)) return value.map(cloneChartConfig);
     if (!value || typeof value !== 'object') return value;
@@ -5197,6 +5227,49 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     const controlsHost = modal.querySelector('#chartExpandControls');
     if (controlsHost) {
       controlsHost.innerHTML = '';
+      if (chartId === 'customerVolumeChart') {
+        const unit = STATE.customerVolumeUnit === 'sheets' ? 'sheets' : 'flats';
+        const showWasteChecked = STATE.customerVolumeShowWaste !== false;
+        controlsHost.innerHTML = `
+          <div class="chart-tools chart-tools-expanded">
+            <div class="metric-toggle" id="customerVolumeUnitToggleExpanded">
+              <button class="btn ${unit === 'flats' ? 'active' : ''}" data-unit="flats" type="button">Flats</button>
+              <button class="btn ${unit === 'sheets' ? 'active' : ''}" data-unit="sheets" type="button">Sheets</button>
+            </div>
+            <label><input type="checkbox" id="customerVolumeShowWasteExpanded" ${showWasteChecked ? 'checked' : ''} /> Show Waste</label>
+            <select id="customerVolumeSortExpanded" class="select">
+              <option value="desc" ${STATE.customerVolumeSort === 'desc' ? 'selected' : ''}>Highest first</option>
+              <option value="asc" ${STATE.customerVolumeSort === 'asc' ? 'selected' : ''}>Lowest first</option>
+            </select>
+            <button id="customerVolumeExpandExpanded" class="btn secondary" type="button">${STATE.customerVolumeExpanded ? 'Collapse' : 'Show all'}</button>
+            <div class="hm-legend" id="customerVolumeLegendExpanded">
+              <span><span class="dot" style="background:#2E8B57"></span> ${unit === 'flats' ? 'Good Flats' : 'Good Sheets'}</span>
+              <span><span class="dot" style="background:#c36b5a"></span> ${unit === 'flats' ? 'Waste Flats' : 'Waste Sheets'}</span>
+            </div>
+          </div>`;
+        controlsHost.querySelectorAll('#customerVolumeUnitToggleExpanded button[data-unit]').forEach(btn => btn.addEventListener('click', () => {
+          STATE.customerVolumeUnit = btn.dataset.unit === 'sheets' ? 'sheets' : 'flats';
+          syncCustomerVolumeMetricFromControls();
+          renderDashboard();
+          openExpandedChart(chartId, title);
+        }));
+        controlsHost.querySelector('#customerVolumeShowWasteExpanded')?.addEventListener('change', e => {
+          STATE.customerVolumeShowWaste = !!e.target.checked;
+          syncCustomerVolumeMetricFromControls();
+          renderDashboard();
+          openExpandedChart(chartId, title);
+        });
+        controlsHost.querySelector('#customerVolumeSortExpanded')?.addEventListener('change', e => {
+          STATE.customerVolumeSort = e.target.value === 'asc' ? 'asc' : 'desc';
+          renderDashboard();
+          openExpandedChart(chartId, title);
+        });
+        controlsHost.querySelector('#customerVolumeExpandExpanded')?.addEventListener('click', () => {
+          STATE.customerVolumeExpanded = !STATE.customerVolumeExpanded;
+          renderDashboard();
+          openExpandedChart(chartId, title);
+        });
+      }
       const sourceToggle = document.querySelector(`[data-rank-card="${chartKey}"] [data-chart-toggle]`) || document.querySelector(`[data-chart-toggle="${chartKey}"]`);
       if (sourceToggle) {
         const clone = sourceToggle.cloneNode(true);
@@ -6550,20 +6623,33 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     const wasteValues = rows.map(r => useFlats ? Number(r.wastePrintedFlats || 0) : Number(r.wasteSheets || 0));
     const wasteColors = rows.map(r => wasteRatioColor(r.wasteRatio));
     const goodFill = '#2E8B57';
+    const isExpanded = options.expanded === true;
+    const totalValues = rows.map(r => useFlats
+      ? Number(r.totalPrintedFlats || (Number(r.goodPrintedFlats || 0) + Number(r.wastePrintedFlats || 0)))
+      : Number(r.totalSheets || (Number(r.goodSheets || 0) + Number(r.wasteSheets || 0))));
+    const unitLabelGood = useFlats ? 'Good Flats' : 'Good Sheets';
+    const unitLabelWaste = useFlats ? 'Waste Flats' : 'Waste Sheets';
     return {
       type: 'bar',
       disableAutoValueLabels: true,
+      plugins: [buildStackedTotalLabelPlugin({
+        values: totalValues,
+        formatter: value => isExpanded ? Number(value || 0).toLocaleString() : formatCompactNumber(value),
+        color: '#e3eeff',
+        font: isExpanded ? '700 12px Inter, system-ui, sans-serif' : '700 11px Inter, system-ui, sans-serif'
+      })],
       data: {
         labels,
         datasets: [
-          { label: useFlats ? 'Good Flats' : 'Good Sheets', data: goodValues, backgroundColor: goodFill, borderColor: goodFill, borderWidth: 1, borderRadius: 6, minBarLength: 3, stack: 'volume' },
-          ...(hasWasteData ? [{ label: useFlats ? 'Waste Flats' : 'Waste Sheets', data: wasteValues, backgroundColor: wasteColors, borderColor: wasteColors, borderWidth: 1, borderRadius: 6, minBarLength: 2, stack: 'volume' }] : [])
+          { label: unitLabelGood, data: goodValues, backgroundColor: goodFill, borderColor: goodFill, borderWidth: 1, borderRadius: 6, minBarLength: 3, stack: 'volume' },
+          ...(hasWasteData ? [{ label: unitLabelWaste, data: wasteValues, backgroundColor: wasteColors, borderColor: wasteColors, borderWidth: 1, borderRadius: 6, minBarLength: 2, stack: 'volume' }] : [])
         ]
       },
       options: {
         ...baseOptions('customerVolume', labels, rows),
+        layout: { padding: { top: isExpanded ? 28 : 18, right: 14, bottom: 8, left: 8 } },
         scales: {
-          x: { stacked: true, ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' } },
+          x: { stacked: true, ticks: { color: '#c6d3ea', minRotation: isExpanded ? 18 : 0, maxRotation: isExpanded ? 36 : 0 }, grid: { color: 'rgba(255,255,255,.04)' } },
           y: { stacked: true, ticks: { color: '#c6d3ea', callback: value => Number(value || 0).toLocaleString() }, grid: { color: 'rgba(255,255,255,.04)' }, beginAtZero: true }
         },
         plugins: {
@@ -6578,7 +6664,7 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
                 const total = useFlats ? Number(row.totalPrintedFlats) : Number(row.totalSheets);
                 const ratioPct = (Number.isFinite(waste) && Number.isFinite(total) && total > 0) ? ((waste / total) * 100) : NaN;
                 const unitLabel = useFlats ? 'Flats' : 'Sheets';
-                return [`Good ${unitLabel}: ${fmt(useFlats ? row.goodPrintedFlats : row.goodSheets)}`, `Waste ${unitLabel}: ${fmt(waste)}`, `Total ${unitLabel}: ${fmt(total)}`, `Waste Ratio: ${Number.isFinite(ratioPct) ? ratioPct.toFixed(2) + '%' : 'N/A'}`];
+                return [`Mode: ${unitLabel}`, `Good ${unitLabel}: ${fmt(useFlats ? row.goodPrintedFlats : row.goodSheets)}`, `Waste ${unitLabel}: ${fmt(waste)}`, `Total ${unitLabel}: ${fmt(total)}`, `Waste Ratio: ${Number.isFinite(ratioPct) ? ratioPct.toFixed(2) + '%' : 'N/A'}`];
               }
             }
           }
@@ -8069,8 +8155,8 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     });
     STATE.customerVolumeAllRows = allCustomerVolumeRows;
     const customerVolumeRendered = renderVolumeByPressChart(visibleCustomerVolumeRows, sourceScope.hasWasteData !== false);
-    CHART_EXPANDED_CONFIGS.set('customerVolumeChart', cloneChartConfig(buildPrintVolumeChartConfig(allCustomerVolumeRows, { hasWasteData: sourceScope.hasWasteData !== false, unit: STATE.customerVolumeUnit })));
-    CHART_DEFAULT_EXPANDED_CONFIGS.set('customerVolumeChart', cloneChartConfig(buildPrintVolumeChartConfig(allCustomerVolumeRows.slice(0, 15), { hasWasteData: sourceScope.hasWasteData !== false, unit: STATE.customerVolumeUnit })));
+    CHART_EXPANDED_CONFIGS.set('customerVolumeChart', cloneChartConfig(buildPrintVolumeChartConfig(allCustomerVolumeRows, { hasWasteData: sourceScope.hasWasteData !== false, unit: STATE.customerVolumeUnit, expanded: true })));
+    CHART_DEFAULT_EXPANDED_CONFIGS.set('customerVolumeChart', cloneChartConfig(buildPrintVolumeChartConfig(allCustomerVolumeRows.slice(0, 15), { hasWasteData: sourceScope.hasWasteData !== false, unit: STATE.customerVolumeUnit, expanded: true })));
     const wasteConsistency = validateVolumeWasteConsistency(sourceScope, STATE.kpis, allCustomerVolumeRows);
     console.group('Landa InsightPro+ Volume/Waste Reconciliation');
     console.info(`Detected Printed Sheets field: ${STATE.volumeModel?.contract?.printedSheetsField || 'unknown'}`);
