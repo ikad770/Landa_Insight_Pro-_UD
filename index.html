@@ -6629,11 +6629,15 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       : Number(r.totalSheets || (Number(r.goodSheets || 0) + Number(r.wasteSheets || 0))));
     const unitLabelGood = useFlats ? 'Good Flats' : 'Good Sheets';
     const unitLabelWaste = useFlats ? 'Waste Flats' : 'Waste Sheets';
+    const activeMetric = STATE.customerVolumeMetric || (useFlats ? 'totalPrintedFlats' : 'totalPrintedSheets');
+    const isWasteOnly = activeMetric === (useFlats ? 'wastePrintedFlats' : 'wastePrintedSheets');
+    const isGoodOnly = activeMetric === (useFlats ? 'goodPrintedFlats' : 'goodPrintedSheets');
+    const labelValues = isWasteOnly ? wasteValues : (isGoodOnly ? goodValues : totalValues);
     return {
       type: 'bar',
       disableAutoValueLabels: true,
       plugins: [buildStackedTotalLabelPlugin({
-        values: totalValues,
+        values: labelValues,
         formatter: value => isExpanded ? Number(value || 0).toLocaleString() : formatCompactNumber(value),
         color: '#e3eeff',
         font: isExpanded ? '700 12px Inter, system-ui, sans-serif' : '700 11px Inter, system-ui, sans-serif'
@@ -8032,6 +8036,40 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
   }
 
   
+
+  function validatePrintVolumeChartState(sourceScope, chartRows = []) {
+    const aggRows = sourceScope?.volumeAgg || [];
+    const rawRows = sourceScope?.filteredVolumeRowsNative || [];
+    const useFlats = STATE.customerVolumeUnit === 'flats';
+    const activeMetric = STATE.customerVolumeMetric || (useFlats ? 'totalPrintedFlats' : 'totalPrintedSheets');
+    const expectedMetricSeries = chartRows.map(row => Number(volumeMetricValue(row, activeMetric) || 0));
+    const observedMetricSeries = chartRows.map(row => {
+      if (activeMetric === 'wastePrintedSheets' || activeMetric === 'wastePrintedFlats') return Number(useFlats ? row.wastePrintedFlats : row.wasteSheets);
+      if (activeMetric === 'goodPrintedSheets' || activeMetric === 'goodPrintedFlats') return Number(useFlats ? row.goodPrintedFlats : row.goodSheets);
+      return Number(useFlats ? row.totalPrintedFlats : row.totalPrintedSheets);
+    });
+    const specialsOnlyWaste = rawRows.every(r => {
+      const isSpecial = isSpecialJobType(r?.jobType);
+      const good = Number(r?.goodPrintedSheets || r?.productionPrintedSheets || 0);
+      const waste = Number(r?.wastePrintedSheets || 0);
+      return isSpecial ? good === 0 : waste === 0;
+    });
+    const aggNoDupes = new Set(aggRows.map(r => String(r?.key || `${r?.canonicalPress||''}|${r?.canonicalModel||''}|${r?.day||''}`))).size === aggRows.length;
+    const checks = [
+      { id: 'pv-special-only-waste', pass: specialsOnlyWaste },
+      { id: 'pv-good-plus-waste-equals-total', pass: aggRows.every(r => nearlyEqual(Number(r?.totalPrintedSheets||0), Number(r?.goodPrintedSheets||0) + Number(r?.wastePrintedSheets||0), 0.00001)) },
+      { id: 'pv-labels-match-rendered', pass: expectedMetricSeries.every((v, i) => nearlyEqual(v, observedMetricSeries[i], 0.00001)) },
+      { id: 'pv-tooltip-basis-consistent', pass: chartRows.every(r => nearlyEqual(Number(r.totalPrintedSheets||0), Number(r.goodSheets||0)+Number(r.wasteSheets||0),0.00001)) },
+      { id: 'pv-unit-source', pass: useFlats ? aggRows.every(r => Number.isFinite(Number(r?.totalPrintedFlats || 0))) : aggRows.every(r => Number.isFinite(Number(r?.totalPrintedSheets || 0))) },
+      { id: 'pv-sort-active-metric', pass: chartRows.every((row, idx, arr) => idx === 0 || (STATE.customerVolumeSort === 'asc' ? Number(arr[idx-1].metricValue||0) <= Number(row.metricValue||0) : Number(arr[idx-1].metricValue||0) >= Number(row.metricValue||0))) },
+      { id: 'pv-volumeagg-only', pass: Array.isArray(aggRows) && !('availabilityAgg' in (chartRows[0] || {})) },
+      { id: 'pv-no-duplicate-agg-rows', pass: aggNoDupes }
+    ];
+    const failed = checks.filter(c => !c.pass);
+    if (failed.length) console.warn('[print-volume-validation-warning]', { activeMetric, useFlats, failed });
+    return { ok: failed.length === 0, checks, failed, activeMetric, useFlats };
+  }
+
   function validateVolumeWasteConsistency(sourceScope, kpis, customerVolumeRows = [], selectedPress = null) {
     const rows = sourceScope?.filteredVolumeRowsNative || [];
     const agg = sourceScope?.volumeAgg || [];
@@ -8154,6 +8192,8 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       }
     });
     STATE.customerVolumeAllRows = allCustomerVolumeRows;
+    const printVolumeValidation = validatePrintVolumeChartState(sourceScope, allCustomerVolumeRows);
+    if (!printVolumeValidation.ok) setStatus('Print Volume validation warning: chart values may be inconsistent. Check console for details.', 'warning');
     const customerVolumeRendered = renderVolumeByPressChart(visibleCustomerVolumeRows, sourceScope.hasWasteData !== false);
     CHART_EXPANDED_CONFIGS.set('customerVolumeChart', cloneChartConfig(buildPrintVolumeChartConfig(allCustomerVolumeRows, { hasWasteData: sourceScope.hasWasteData !== false, unit: STATE.customerVolumeUnit, expanded: true })));
     CHART_DEFAULT_EXPANDED_CONFIGS.set('customerVolumeChart', cloneChartConfig(buildPrintVolumeChartConfig(allCustomerVolumeRows.slice(0, 15), { hasWasteData: sourceScope.hasWasteData !== false, unit: STATE.customerVolumeUnit, expanded: true })));
