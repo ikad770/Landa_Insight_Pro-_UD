@@ -1210,7 +1210,7 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
           <div id="pressScatterLegend"></div>
           <canvas id="pressImpactScatterChartLegacy"></canvas>
           <div id="pressOutliersList"></div>
-          <article data-rank-card="version"><div class="chart-tools"><div class="metric-toggle" data-chart-toggle="version"><button class="btn active" data-mode="events">Events</button><button class="btn" data-mode="duration">Duration</button><button class="btn" data-mode="perPress">Per press</button></div><button class="btn secondary" data-expand="version">Show all</button></div><div class="micro"></div><canvas id="versionChart"></canvas></article>
+          <article data-rank-card="version"><div class="chart-tools"><div class="metric-toggle" data-chart-toggle="version"><button class="btn active" data-mode="events">Events</button><button class="btn" data-mode="duration">Duration</button><button class="btn" data-mode="perPress">Per press</button></div><button class="btn secondary" data-expand="version">Show all</button></div><div class="micro"></div><canvas id="versionChartLegacy"></canvas></article>
           <button data-expand="subsystem"></button><button data-expand="alert"></button>
           <div class="metric-toggle" data-chart-toggle="subsystem"><button class="btn active" data-mode="events">Events</button><button class="btn" data-mode="duration">Duration</button></div>
           <div class="metric-toggle" data-chart-toggle="alert"><button class="btn active" data-mode="events">Events</button><button class="btn" data-mode="duration">Duration</button></div>
@@ -8267,6 +8267,7 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
         topOutlier: pressAbnormalityModel.topOutlier?.name || 'N/A'
       },
     });
+    try {
       const globalValidation = buildGlobalDataValidation(sourceScope, allCustomerVolumeRows);
       const genericValidation = buildGenericValidationEngine(sourceScope, STATE.kpis);
       STATE.genericValidation = genericValidation;
@@ -8274,9 +8275,12 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       if (!globalValidation.isValid) console.warn('[global-data-validation]', globalValidation);
       renderDashboardStatusPanel(sourceScope, mismatches, STATE.reconciliation.report, renderValidation, globalValidation, genericValidation);
       renderTable(STATE.filtered);
+    } catch (diagnosticsError) {
+      console.warn('[dashboard-diagnostics-warning]', diagnosticsError);
+    }
     } catch (error) {
       console.error('[dashboard-render-failure]', error);
-      ['pressImpactScatterChart', 'subsystemChart', 'alertChart', 'versionChart', 'versionDurationChart', 'customerVolumeChart'].forEach(id => setCanvasState(id, `Failed to render ${id}.`, 'error'));
+      setStatus('Dashboard rendered with partial diagnostics errors. See console for details.', 'warning');
     }
   }
 
