@@ -833,6 +833,19 @@
     .kpi-sub .compare-delta { font-weight:800; }
     .kpi-sub .compare-delta.up-good, .kpi-sub .compare-delta.down-good { color:#32d583; }
     .kpi-sub .compare-delta.up-bad, .kpi-sub .compare-delta.down-bad { color:#ff6262; }
+    .compare-context-bar{display:none;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border:1px solid rgba(88,184,255,.35);border-radius:12px;background:linear-gradient(135deg,rgba(13,39,66,.86),rgba(8,24,42,.84));box-shadow:0 12px 28px rgba(0,0,0,.22)}
+    .compare-context-bar.active{display:flex}
+    .compare-context-meta{font-size:.8rem;color:#d8e8ff}
+    .compare-context-actions{display:flex;gap:8px;flex-wrap:wrap}
+    .compare-exec-row{display:none;grid-template-columns:repeat(6,minmax(130px,1fr));gap:9px;margin-top:2px}
+    .compare-exec-row.active{display:grid}
+    .compare-exec-card{border:1px solid rgba(122,172,235,.26);border-radius:12px;background:linear-gradient(155deg,rgba(14,30,52,.94),rgba(8,20,37,.9));padding:10px;box-shadow:0 14px 36px rgba(0,0,0,.24),inset 0 0 0 1px rgba(255,255,255,.02)}
+    .compare-exec-card.good{border-color:rgba(84,209,141,.46)} .compare-exec-card.bad{border-color:rgba(255,92,88,.44)} .compare-exec-card.neutral{border-color:rgba(120,170,230,.3)}
+    .compare-exec-title{font-size:.72rem;color:#a9bfdc;text-transform:uppercase;letter-spacing:.06em}
+    .compare-exec-delta{margin-top:6px;font-size:1rem;font-weight:800}
+    .compare-exec-card.good .compare-exec-delta{color:#54d18d}.compare-exec-card.bad .compare-exec-delta{color:#ff736e}.compare-exec-card.neutral .compare-exec-delta{color:#7ecbff}
+    .compare-exec-values{margin-top:4px;font-size:.72rem;color:#bfd2eb}
+    .compare-exec-insight{margin-top:5px;font-size:.72rem;color:#dce9ff}
     .bubble-heatmap-wrap { margin-top:6px; }
     .bubble-heatmap-table { width:100%; border-collapse:separate; border-spacing:0; table-layout:fixed; font-size:.78rem; }
     .bubble-heatmap-table th, .bubble-heatmap-table td { border-right:1px solid rgba(150,200,255,.08); border-bottom:1px solid rgba(150,200,255,.08); padding:8px 6px; text-align:center; }
@@ -1162,6 +1175,14 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
           <span>Confidence: <strong class="confidence-high">HIGH</strong></span>
         </section>
 
+        <section id="compareContextBar" class="compare-context-bar">
+          <div id="compareContextMeta" class="compare-context-meta"></div>
+          <div class="compare-context-actions">
+            <button id="changeComparisonBtn" class="btn secondary" type="button">Change comparison</button>
+            <button id="clearComparisonContextBtn" class="btn secondary" type="button">Clear comparison</button>
+          </div>
+        </section>
+        <section id="comparisonExecutiveRow" class="compare-exec-row"></section>
         <section id="kpiStrip" class="kpis command-kpis"></section>
         <section id="dashboardStatusPanel" class="dashboard-status hidden"></section>
 
@@ -1733,6 +1754,7 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     STATE.compare = { active: false, currentId: null, baselineId: null, baselineSnapshot: null, currentSnapshot: null };
     const meta = document.getElementById('compareMeta');
     if (meta) { meta.classList.add('hidden'); meta.textContent = 'Compare mode'; }
+    updateComparisonContextUI();
     if (reRender && STATE.merged?.events?.length) renderDashboard();
   }
   function syncCompareSelectors(preferredBaselineId = null) {
@@ -1778,13 +1800,40 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     const currentSnapshot = await getStoredDatasetById(currentId);
     const baselineSnapshot = await getStoredDatasetById(baselineId);
     if (!currentSnapshot || !baselineSnapshot) { setStatus('Selected datasets could not be loaded from local storage.', 'error'); return; }
+    if (!hasValidSnapshotPayload(currentSnapshot) || !hasValidSnapshotPayload(baselineSnapshot)) { setStatus('Only fully validated saved datasets can be compared.', 'error'); return; }
+    const compareValidation = validateComparisonCompatibility(currentSnapshot, baselineSnapshot);
+    if (!compareValidation.compatible) { setStatus(`Comparison blocked: ${compareValidation.blockers.join(' · ')}`, 'error'); return; }
     restoreDatasetSnapshot(currentSnapshot, { preserveCompare: false });
-    STATE.compare = { active: true, currentId, baselineId, baselineSnapshot, currentSnapshot };
+    STATE.compare = { active: true, currentId, baselineId, baselineSnapshot, currentSnapshot, validation: compareValidation };
     const meta = document.getElementById('compareMeta');
     if (meta) { meta.classList.remove('hidden'); meta.textContent = `Compare: ${formatSnapshotLabel(currentSnapshot)} vs ${formatSnapshotLabel(baselineSnapshot)}`; }
+    updateComparisonContextUI();
     closeCompareModal();
     renderDashboard();
+    if (compareValidation.warnings.length) setStatus(`Compare mode active with warnings: ${compareValidation.warnings.join(' · ')}`, 'warning');
     setStatus(`Compare mode active: ${formatSnapshotLabel(currentSnapshot)} vs ${formatSnapshotLabel(baselineSnapshot)}.`, 'ok');
+  }
+  function validateComparisonCompatibility(currentSnapshot, baselineSnapshot) {
+    const blockers = [];
+    const warnings = [];
+    const requiredSources = ['errors', 'availability', 'volume'];
+    const currentSources = requiredSources.filter(k => !!currentSnapshot?.files?.[k]);
+    const baselineSources = requiredSources.filter(k => !!baselineSnapshot?.files?.[k]);
+    if (!currentSources.length || !baselineSources.length) blockers.push('Missing required source metadata');
+    const missingInBaseline = currentSources.filter(k => !baselineSources.includes(k));
+    if (missingInBaseline.length) warnings.push(`Baseline missing source(s): ${missingInBaseline.join(', ')}`);
+    ['totalEvents', 'totalDowntimePct', 'mttr', 'availabilityPercent'].forEach(key => {
+      if (baselineSnapshot?.payload?.kpis?.[key] == null) warnings.push(`Baseline KPI missing: ${key}`);
+    });
+    return { compatible: blockers.length === 0, blockers, warnings, sources: { current: currentSources, baseline: baselineSources } };
+  }
+  function updateComparisonContextUI() {
+    const bar = document.getElementById('compareContextBar');
+    const meta = document.getElementById('compareContextMeta');
+    if (!bar || !meta) return;
+    if (!STATE.compare?.active || !STATE.compare?.baselineSnapshot) { bar.classList.remove('active'); meta.textContent = ''; return; }
+    bar.classList.add('active');
+    meta.textContent = `Compared to: ${STATE.compare.baselineSnapshot?.startDate || 'n/a'} → ${STATE.compare.baselineSnapshot?.endDate || 'n/a'}`;
   }
   function getKpiCompareConfig(metricKey) {
     return {
@@ -1812,8 +1861,25 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     return {
       prefix: `vs ${formatSnapshotLabel(STATE.compare.baselineSnapshot)}`,
       deltaText: pct == null ? 'n/a' : `${delta >= 0 ? '↑' : '↓'} ${Math.abs(pct).toFixed(cfg.digits)}%`,
-      tone
+      tone, delta, current, baseline, pct
     };
+  }
+  function renderComparisonExecutiveRow() {
+    const host = document.getElementById('comparisonExecutiveRow');
+    if (!host) return;
+    if (!STATE.compare?.active || !STATE.compare?.baselineSnapshot) { host.classList.remove('active'); host.innerHTML = ''; return; }
+    const defs = [
+      ['Downtime trend','downtime',false],['MTTR trend','mttr',false],['Waste Ratio trend','wasteRatio',false],['Availability trend','availability',true],['Volume trend','volume',true],['Critical Alerts trend','events',false]
+    ];
+    host.innerHTML = defs.map(([label,key,higherBetter]) => {
+      const d = buildCompareDelta(key);
+      if (!d) return '';
+      const state = d.delta === 0 ? 'neutral' : ((higherBetter && d.delta > 0) || (!higherBetter && d.delta < 0) ? 'good' : 'bad');
+      const pp = key === 'availability' || key === 'wasteRatio';
+      const deltaText = d.pct == null ? 'n/a' : `${d.delta >= 0 ? '+' : ''}${Math.abs(pp ? d.delta : d.pct).toFixed(2)} ${pp ? 'pp' : '%'}`;
+      return `<article class="compare-exec-card ${state}"><div class="compare-exec-title">${esc(label)}</div><div class="compare-exec-delta">${esc(deltaText)}</div><div class="compare-exec-values">Prev ${esc(String(d.baseline.toFixed(2)))} • Curr ${esc(String(d.current.toFixed(2)))}</div><div class="compare-exec-insight">${esc(state==='good'?'Improved':state==='bad'?'Deteriorated':'Stable')}</div></article>`;
+    }).join('');
+    host.classList.add('active');
   }
   const VOLUME_BASIS = {
     code: 'B',
@@ -3441,6 +3507,8 @@ function extractPressCodeFromAvailabilityId(rawId) {
     const closeCompareBtn = document.getElementById('closeCompareBtn');
     const applyCompareBtn = document.getElementById('applyCompareBtn');
     const clearCompareBtn = document.getElementById('clearCompareBtn');
+    const clearComparisonContextBtn = document.getElementById('clearComparisonContextBtn');
+    const changeComparisonBtn = document.getElementById('changeComparisonBtn');
     const compareCurrentSelect = document.getElementById('compareCurrentSelect');
     const compareBaselineSelect = document.getElementById('compareBaselineSelect');
     compareBtn?.addEventListener('click', () => openCompareModal());
@@ -3448,6 +3516,8 @@ function extractPressCodeFromAvailabilityId(rawId) {
     compareModal?.addEventListener('click', e => { if (e.target === compareModal) closeCompareModal(); });
     applyCompareBtn?.addEventListener('click', applyCompareSelection);
     clearCompareBtn?.addEventListener('click', () => { clearCompareState(); closeCompareModal(); setStatus('Compare mode cleared.', 'info'); });
+    clearComparisonContextBtn?.addEventListener('click', () => { clearCompareState(); setStatus('Comparison cleared.', 'info'); });
+    changeComparisonBtn?.addEventListener('click', () => openCompareModal());
     compareCurrentSelect?.addEventListener('change', updateCompareMetaPreview);
     compareBaselineSelect?.addEventListener('change', updateCompareMetaPreview);
     return true;
@@ -8147,6 +8217,8 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       setStatus('Validation mismatch detected. Rendering continues with best validated source data.', 'warning');
     }
     syncMetricToggleUI();
+    updateComparisonContextUI();
+    renderComparisonExecutiveRow();
     renderKpis(STATE.kpis);
     const safeRankingRender = (key) => {
       try {
