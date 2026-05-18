@@ -1665,7 +1665,7 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
       if (latestBtn) { latestBtn.disabled = !datasets.length; latestBtn.title = datasets.length ? 'Load newest saved snapshot' : 'No saved dataset yet'; }
       if (!datasets.length) {
         host.innerHTML = '<div class="stored-dataset-empty">No saved datasets yet. Run analysis once to enable quick reload.</div>';
-        syncCompareSelectors();
+        loadCompareCandidates().then(() => renderCompareOptions()).catch(() => {});
         return;
       }
       host.innerHTML = datasets.map((entry, index) => `
@@ -1723,7 +1723,7 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
         await refreshStoredDatasetUI();
         setStatus('Saved dataset deleted.', 'ok');
       }));
-      syncCompareSelectors();
+      loadCompareCandidates().then(() => renderCompareOptions()).catch(() => {});
     } catch (error) {
       host.innerHTML = `<div class="stored-dataset-empty">Saved datasets are unavailable: ${esc(error.message || 'storage error')}</div>`;
     }
@@ -1800,13 +1800,17 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     STATE.storedDatasets = repaired ? await getStoredDatasetsDetailed().catch(() => repairedItems) : fromDb;
     return { items: STATE.storedDatasets, repaired };
   }
-  async function syncCompareSelectors(preferredBaselineId = null) {
+  async function loadCompareCandidates() {
+    const repairResult = await repairStoredDatasetIdentities();
+    if (repairResult?.repaired) setStatus('Saved dataset identities were repaired. If comparison still looks wrong, clear recent datasets and reload the files.', 'warning');
+    STATE.storedDatasets = repairResult?.items || [];
+    return STATE.storedDatasets;
+  }
+  async function renderCompareOptions(preferredBaselineId = null) {
     const currentSel = document.getElementById('compareCurrentSelect');
     const baselineSel = document.getElementById('compareBaselineSelect');
     if (!currentSel || !baselineSel) return;
-    const applyBtn = document.getElementById('applyCompareBtn');
-    const items = await getStoredDatasetsDetailed().catch(() => []);
-    STATE.storedDatasets = items;
+    const items = STATE.storedDatasets || [];
     const options = items.map(entry => `<option value="${esc(entry.id)}">${esc(formatSnapshotLabel(entry))} • ${esc(formatSnapshotMeta(entry))}</option>`).join('');
     currentSel.innerHTML = options || '<option value="">No saved datasets</option>';
     baselineSel.innerHTML = options || '<option value="">No saved datasets</option>';
@@ -1818,10 +1822,9 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     baselineSel.value = baselineId;
     STATE.compare.currentDatasetId = currentSel.value || null;
     STATE.compare.baselineDatasetId = baselineSel.value || null;
-    if (applyBtn && items.length < 2) applyBtn.disabled = true;
-    updateCompareMetaPreview();
+    updateCompareSelectionState();
   }
-  function updateCompareMetaPreview() {
+  function updateCompareSelectionState() {
     const items = STATE.storedDatasets || [];
     const currentSel = document.getElementById('compareCurrentSelect');
     const baselineSel = document.getElementById('compareBaselineSelect');
@@ -1834,23 +1837,24 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     if (baselineMeta) baselineMeta.textContent = baseline ? formatSnapshotMeta(baseline) : 'No baseline selected.';
     const sameDataset = !!(current?.id && baseline?.id && current.id === baseline.id);
     let reason = '';
-    if (!currentSel?.value) reason = 'missing current';
-    else if (!baselineSel?.value) reason = 'missing baseline';
-    else if (sameDataset) reason = 'same dataset';
-    else if (!current || !baseline) reason = 'invalid snapshot';
-    else if (!current?.payload?.kpis || !baseline?.payload?.kpis) reason = 'missing KPI payload';
+    if (!currentSel?.value) reason = 'Missing current dataset';
+    else if (!baselineSel?.value) reason = 'Missing baseline dataset';
+    else if (sameDataset) reason = 'Same dataset selected';
+    else if (!current || !baseline) reason = 'Snapshot not found';
+    else if (!current?.payload?.kpis || !baseline?.payload?.kpis) reason = 'Metrics unavailable';
     console.info('[compare-select]', { currentId: currentSel?.value || null, currentLabel: current ? formatSnapshotLabel(current) : null, baselineId: baselineSel?.value || null, baselineLabel: baseline ? formatSnapshotLabel(baseline) : null, sameDataset });
+    const applyEnabled = !reason;
+    const debugLine = `debug • currentId=${currentSel?.value || 'n/a'} • baselineId=${baselineSel?.value || 'n/a'} • sameDataset=${sameDataset} • applyEnabled=${applyEnabled} • disabledReason=${reason || 'none'}`;
     if (summary) summary.textContent = reason
-      ? `Apply compare blocked: ${reason}.`
-      : `Comparing ${formatSnapshotLabel(current)} against ${formatSnapshotLabel(baseline)}.`;
+      ? `Apply compare blocked: ${reason}. ${debugLine}`
+      : `Comparing ${formatSnapshotLabel(current)} against ${formatSnapshotLabel(baseline)}. ${debugLine}`;
     const applyBtn = document.getElementById('applyCompareBtn');
-    if (applyBtn) applyBtn.disabled = !!reason;
+    if (applyBtn) applyBtn.disabled = !applyEnabled;
   }
   async function openCompareModal(preferredBaselineId = null) {
-    const repairResult = await repairStoredDatasetIdentities();
-    if (repairResult?.repaired) setStatus('Saved dataset identities were repaired. If comparison still looks wrong, clear recent datasets and reload the files.', 'warning');
-    if ((STATE.storedDatasets || []).length < 2) { setStatus('Compare needs at least 2 saved datasets.', 'warning'); return; }
-    await syncCompareSelectors(preferredBaselineId);
+    const items = await loadCompareCandidates();
+    if ((items || []).length < 2) { setStatus('Compare needs at least 2 saved datasets.', 'warning'); return; }
+    await renderCompareOptions(preferredBaselineId);
     const modal = document.getElementById('compareModal');
     if (modal) {
       modal.classList.add('open');
@@ -1871,10 +1875,45 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
       console.info('[compare] Modal closed');
     }
   }
-  function clearComparison() {
+  function clearCompare() {
     clearCompareState();
     closeCompareModal();
     setStatus('Comparison cleared.', 'info');
+  }
+  function computeCompareMetrics(currentSnapshot, baselineSnapshot) {
+    return computeComparisonMetrics(currentSnapshot, baselineSnapshot);
+  }
+  function renderCompareContextBar() {
+    updateComparisonContextUI();
+  }
+  function renderCompareSummaryRow() {
+    renderComparisonExecutiveRow();
+  }
+  async function applyCompare() {
+    console.info('[compare] Apply clicked');
+    const currentId = document.getElementById('compareCurrentSelect')?.value;
+    const baselineId = document.getElementById('compareBaselineSelect')?.value;
+    if (!currentId) { setStatus('Missing current dataset', 'warning'); updateCompareSelectionState(); return; }
+    if (!baselineId) { setStatus('Missing baseline dataset', 'warning'); updateCompareSelectionState(); return; }
+    if (currentId === baselineId) { setStatus('Same dataset selected', 'warning'); updateCompareSelectionState(); return; }
+    const currentSnapshot = await getStoredDatasetById(currentId);
+    const baselineSnapshot = await getStoredDatasetById(baselineId);
+    if (!currentSnapshot || !baselineSnapshot) { setStatus('Snapshot not found', 'error'); updateCompareSelectionState(); return; }
+    if (!hasValidSnapshotPayload(currentSnapshot) || !hasValidSnapshotPayload(baselineSnapshot)) { setStatus('Metrics unavailable', 'error'); updateCompareSelectionState(); return; }
+    const metrics = computeCompareMetrics(currentSnapshot, baselineSnapshot);
+    if (!metrics || !Object.values(metrics).some(m => m?.available)) { setStatus('Metrics unavailable', 'error'); updateCompareSelectionState(); return; }
+    const compareValidation = validateComparisonCompatibility(currentSnapshot, baselineSnapshot);
+    if (!compareValidation.compatible) { console.warn('[compare] Validation failed', compareValidation); setStatus(`Comparison blocked: ${compareValidation.blockers.join(' · ')}`, 'error'); return; }
+    const shouldRestoreCurrent = STATE.activeSnapshotId !== currentId;
+    if (shouldRestoreCurrent) restoreDatasetSnapshot(currentSnapshot, { preserveCompare: true });
+    STATE.compare = { ...STATE.compare, active: true, currentDatasetId: currentId, baselineDatasetId: baselineId, appliedCurrentDatasetId: currentId, appliedBaselineDatasetId: baselineId, baselineSnapshot, currentSnapshot, validation: compareValidation, warnings: compareValidation.warnings || [], metrics };
+    const meta = document.getElementById('compareMeta');
+    if (meta) { meta.classList.remove('hidden'); meta.textContent = `Compare: ${formatSnapshotLabel(currentSnapshot)} vs ${formatSnapshotLabel(baselineSnapshot)}`; }
+    closeCompareModal();
+    renderCompareContextBar();
+    renderDashboard();
+    renderCompareSummaryRow();
+    setStatus(`Compare mode active: ${formatSnapshotLabel(currentSnapshot)} vs ${formatSnapshotLabel(baselineSnapshot)}.`, 'ok');
   }
   function computeComparisonMetrics(currentSnapshot, baselineSnapshot) {
     const mapMetric = (key, currentValue, baselineValue, betterWhenHigher, { percentPoint = false } = {}) => {
@@ -1898,33 +1937,6 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
       criticalAlerts: mapMetric('criticalAlerts', currentKpis.totalEvents, baselineKpis.totalEvents, false),
     };
   }
-  async function applyCompareSelection() {
-    console.info('[compare] Apply clicked');
-    const currentId = document.getElementById('compareCurrentSelect')?.value;
-    const baselineId = document.getElementById('compareBaselineSelect')?.value;
-    if (!currentId || !baselineId) { setStatus('Choose both current and comparison datasets.', 'warning'); return; }
-    if (currentId === baselineId) { setStatus('Current and baseline dataset cannot be the same.', 'warning'); updateCompareMetaPreview(); return; }
-    const currentSnapshot = await getStoredDatasetById(currentId);
-    const baselineSnapshot = await getStoredDatasetById(baselineId);
-    if (!currentSnapshot || !baselineSnapshot) { setStatus('Selected datasets could not be loaded from local storage.', 'error'); return; }
-    if (!hasValidSnapshotPayload(currentSnapshot) || !hasValidSnapshotPayload(baselineSnapshot)) { setStatus('Only fully validated saved datasets can be compared.', 'error'); return; }
-    const compareValidation = validateComparisonCompatibility(currentSnapshot, baselineSnapshot);
-    if (!compareValidation.compatible) { console.warn('[compare] Validation failed', compareValidation); setStatus(`Comparison blocked: ${compareValidation.blockers.join(' · ')}`, 'error'); return; }
-    console.info('[compare] Validation passed');
-    const metrics = computeComparisonMetrics(currentSnapshot, baselineSnapshot);
-    console.info('[compare] Comparison metrics computed');
-    const shouldRestoreCurrent = STATE.activeSnapshotId !== currentId;
-    if (shouldRestoreCurrent) restoreDatasetSnapshot(currentSnapshot, { preserveCompare: true });
-    STATE.compare = { ...STATE.compare, active: true, currentDatasetId: currentId, baselineDatasetId: baselineId, appliedCurrentDatasetId: currentId, appliedBaselineDatasetId: baselineId, baselineSnapshot, currentSnapshot, validation: compareValidation, warnings: compareValidation.warnings || [], metrics };
-    console.info('[compare] Comparison state applied');
-    const meta = document.getElementById('compareMeta');
-    if (meta) { meta.classList.remove('hidden'); meta.textContent = `Compare: ${formatSnapshotLabel(currentSnapshot)} vs ${formatSnapshotLabel(baselineSnapshot)}`; }
-    updateComparisonContextUI();
-    closeCompareModal();
-    renderDashboard();
-    if (compareValidation.warnings.length) setStatus(`Compare mode active with warnings: ${compareValidation.warnings.join(' · ')}`, 'warning');
-    setStatus(`Compare mode active: ${formatSnapshotLabel(currentSnapshot)} vs ${formatSnapshotLabel(baselineSnapshot)}.`, 'ok');
-  }
   function validateComparisonCompatibility(currentSnapshot, baselineSnapshot) {
     const blockers = [];
     const warnings = [];
@@ -1946,6 +1958,31 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     if (!STATE.compare?.active || !STATE.compare?.baselineSnapshot) { bar.classList.remove('active'); meta.textContent = ''; return; }
     bar.classList.add('active');
     meta.textContent = `Compared to: ${STATE.compare.baselineSnapshot?.startDate || 'n/a'} → ${STATE.compare.baselineSnapshot?.endDate || 'n/a'}`;
+  }
+  function initCompareFeature() {
+    if (STATE.compare?.initialized) return;
+    STATE.compare = { ...STATE.compare, initialized: true };
+    const compareBtn = document.getElementById('compareBtn');
+    const compareModal = document.getElementById('compareModal');
+    const closeCompareBtn = document.getElementById('closeCompareBtn');
+    const applyCompareBtn = document.getElementById('applyCompareBtn');
+    const clearCompareBtn = document.getElementById('clearCompareBtn');
+    const clearComparisonContextBtn = document.getElementById('clearComparisonContextBtn');
+    const changeComparisonBtn = document.getElementById('changeComparisonBtn');
+    const compareCurrentSelect = document.getElementById('compareCurrentSelect');
+    const compareBaselineSelect = document.getElementById('compareBaselineSelect');
+    compareBtn?.addEventListener('click', () => openCompareModal());
+    closeCompareBtn?.addEventListener('click', closeCompareModal);
+    applyCompareBtn?.addEventListener('click', applyCompare);
+    clearCompareBtn?.addEventListener('click', clearCompare);
+    clearComparisonContextBtn?.addEventListener('click', clearCompare);
+    changeComparisonBtn?.addEventListener('click', () => openCompareModal());
+    compareCurrentSelect?.addEventListener('change', () => { STATE.compare.currentDatasetId = compareCurrentSelect.value || null; updateCompareSelectionState(); });
+    compareBaselineSelect?.addEventListener('change', () => { STATE.compare.baselineDatasetId = compareBaselineSelect.value || null; updateCompareSelectionState(); });
+    compareModal?.addEventListener('click', e => { if (e.target === compareModal) closeCompareModal(); });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && document.getElementById('compareModal')?.classList.contains('open')) closeCompareModal();
+    });
   }
   function getKpiCompareConfig(metricKey) {
     return {
@@ -3611,27 +3648,10 @@ function extractPressCodeFromAvailabilityId(rawId) {
       STATE.drilldown.simulation.appliedExcluded = new Set(state.simExclusions);
     }
     syncMetricToggleUI();
+    initCompareFeature();
 
     refreshStoredDatasetUI();
 
-    const compareBtn = document.getElementById('compareBtn');
-    const compareModal = document.getElementById('compareModal');
-    const closeCompareBtn = document.getElementById('closeCompareBtn');
-    const applyCompareBtn = document.getElementById('applyCompareBtn');
-    const clearCompareBtn = document.getElementById('clearCompareBtn');
-    const clearComparisonContextBtn = document.getElementById('clearComparisonContextBtn');
-    const changeComparisonBtn = document.getElementById('changeComparisonBtn');
-    const compareCurrentSelect = document.getElementById('compareCurrentSelect');
-    const compareBaselineSelect = document.getElementById('compareBaselineSelect');
-    compareBtn?.addEventListener('click', () => openCompareModal());
-    closeCompareBtn?.addEventListener('click', closeCompareModal);
-    compareModal?.addEventListener('click', e => { if (e.target === compareModal) closeCompareModal(); });
-    applyCompareBtn?.addEventListener('click', applyCompareSelection);
-    clearCompareBtn?.addEventListener('click', clearComparison);
-    clearComparisonContextBtn?.addEventListener('click', clearComparison);
-    changeComparisonBtn?.addEventListener('click', () => openCompareModal());
-    compareCurrentSelect?.addEventListener('change', () => { STATE.compare.currentDatasetId = compareCurrentSelect.value || null; updateCompareMetaPreview(); });
-    compareBaselineSelect?.addEventListener('change', () => { STATE.compare.baselineDatasetId = compareBaselineSelect.value || null; updateCompareMetaPreview(); });
     return true;
   }
 
