@@ -1517,6 +1517,14 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
       req.onerror = () => reject(req.error || new Error('Failed to read saved dataset.'));
     }));
   }
+
+  function isValidSnapshotId(id) {
+    return typeof id === 'string' && /^ds_[a-z0-9]+_[a-z0-9]+$/i.test(id.trim());
+  }
+  function createSnapshotId() {
+    return `ds_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+  }
+
   async function saveStoredDataset(snapshot) {
     await withDatasetStore('readwrite', store => new Promise((resolve, reject) => {
       const req = store.put(snapshot);
@@ -1574,7 +1582,7 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     const range = getRangeFromCurrentState();
     const errorsFile = STATE.files.errors?.name || STATE.snapshotSourceMeta?.files?.errors || 'Errors';
     const snapshot = {
-      id: `ds_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
+      id: createSnapshotId(),
       savedAt: Date.now(),
       label: range.periodLabel,
       periodLabel: range.periodLabel,
@@ -1650,7 +1658,8 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     const host = document.getElementById('storedDatasetsList');
     if (!host) return;
     try {
-      const datasets = await getStoredDatasetsDetailed();
+      await repairStoredDatasetIdentities();
+      const datasets = STATE.storedDatasets?.length ? STATE.storedDatasets : await getStoredDatasetsDetailed();
       STATE.storedDatasets = datasets;
       const latestBtn = document.getElementById('loadLatestDatasetBtn');
       if (latestBtn) { latestBtn.disabled = !datasets.length; latestBtn.title = datasets.length ? 'Load newest saved snapshot' : 'No saved dataset yet'; }
@@ -1760,47 +1769,56 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     console.info('[compare] Comparison cleared');
     if (reRender && STATE.merged?.events?.length) renderDashboard();
   }
-  function dedupeStoredDatasetIds(items = []) {
-    const seen = new Map();
+  async function repairStoredDatasetIdentities() {
+    const fromDb = await getStoredDatasetsDetailed().catch(() => []);
+    const seen = new Set();
+    const duplicateIds = new Set();
     let repaired = false;
-    const repairedItems = items.map(entry => {
+    const repairedItems = fromDb.map(entry => {
       const currentId = String(entry?.id || '').trim();
-      const count = seen.get(currentId) || 0;
-      seen.set(currentId, count + 1);
-      if (!currentId || count > 0) {
+      const invalid = !isValidSnapshotId(currentId);
+      const duplicate = !!currentId && seen.has(currentId);
+      if (currentId) seen.add(currentId);
+      if (duplicate) duplicateIds.add(currentId);
+      if (invalid || duplicate) {
         repaired = true;
-        return { ...entry, id: `ds_${Date.now()}_${Math.random().toString(36).slice(2, 8)}` };
+        return { ...entry, id: createSnapshotId() };
       }
       return entry;
     });
-    if (repaired) console.warn('[compare] Duplicate or missing dataset ids detected. Regenerated duplicate ids only.');
-    return { repairedItems, repaired };
-  }
-  async function refreshStoredDatasetsForCompare() {
-    const fromDb = await getStoredDatasetsDetailed().catch(() => []);
-    const { repairedItems, repaired } = dedupeStoredDatasetIds(fromDb);
+    if (duplicateIds.size) console.warn('[compare] Duplicate dataset ids detected:', [...duplicateIds]);
     if (repaired) {
-      for (const row of repairedItems) await saveStoredDataset(row);
+      await withDatasetStore('readwrite', (store) => new Promise((resolve, reject) => {
+        const clearReq = store.clear();
+        clearReq.onerror = () => reject(clearReq.error || new Error('Failed to clear dataset store during repair.'));
+        clearReq.onsuccess = () => {
+          for (const item of repairedItems) store.put(item);
+          resolve(true);
+        };
+      }));
     }
-    STATE.storedDatasets = repairedItems;
-    return repairedItems;
+    STATE.storedDatasets = repaired ? await getStoredDatasetsDetailed().catch(() => repairedItems) : fromDb;
+    return { items: STATE.storedDatasets, repaired };
   }
-  function syncCompareSelectors(preferredBaselineId = null) {
+  async function syncCompareSelectors(preferredBaselineId = null) {
     const currentSel = document.getElementById('compareCurrentSelect');
     const baselineSel = document.getElementById('compareBaselineSelect');
     if (!currentSel || !baselineSel) return;
-    const items = STATE.storedDatasets || [];
-    const options = items.map(entry => `<option value="${esc(entry.id)}">${esc(formatSnapshotLabel(entry))} — ${esc(formatSnapshotMeta(entry))}</option>`).join('');
+    const applyBtn = document.getElementById('applyCompareBtn');
+    const items = await getStoredDatasetsDetailed().catch(() => []);
+    STATE.storedDatasets = items;
+    const options = items.map(entry => `<option value="${esc(entry.id)}">${esc(formatSnapshotLabel(entry))} • ${esc(formatSnapshotMeta(entry))}</option>`).join('');
     currentSel.innerHTML = options || '<option value="">No saved datasets</option>';
     baselineSel.innerHTML = options || '<option value="">No saved datasets</option>';
     const activeExists = !!items.find(x => x.id === STATE.activeSnapshotId);
     const currentId = (activeExists ? STATE.activeSnapshotId : items[0]?.id) || '';
     currentSel.value = currentId;
-    const preferred = preferredBaselineId && items.find(x => x.id === preferredBaselineId) ? preferredBaselineId : null;
-    baselineSel.value = preferred || items.find(x => x.id !== currentId)?.id || '';
+    const preferred = preferredBaselineId && preferredBaselineId !== currentId && items.find(x => x.id === preferredBaselineId) ? preferredBaselineId : null;
+    const baselineId = preferred || items.find(x => x.id !== currentId)?.id || '';
+    baselineSel.value = baselineId;
     STATE.compare.currentDatasetId = currentSel.value || null;
     STATE.compare.baselineDatasetId = baselineSel.value || null;
-    console.info('[compare] Selector sync', items.map(x => ({ id: x.id, label: formatSnapshotLabel(x) })));
+    if (applyBtn && items.length < 2) applyBtn.disabled = true;
     updateCompareMetaPreview();
   }
   function updateCompareMetaPreview() {
@@ -1821,6 +1839,7 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     else if (sameDataset) reason = 'same dataset';
     else if (!current || !baseline) reason = 'invalid snapshot';
     else if (!current?.payload?.kpis || !baseline?.payload?.kpis) reason = 'missing KPI payload';
+    console.info('[compare-select]', { currentId: currentSel?.value || null, currentLabel: current ? formatSnapshotLabel(current) : null, baselineId: baselineSel?.value || null, baselineLabel: baseline ? formatSnapshotLabel(baseline) : null, sameDataset });
     if (summary) summary.textContent = reason
       ? `Apply compare blocked: ${reason}.`
       : `Comparing ${formatSnapshotLabel(current)} against ${formatSnapshotLabel(baseline)}.`;
@@ -1828,9 +1847,10 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     if (applyBtn) applyBtn.disabled = !!reason;
   }
   async function openCompareModal(preferredBaselineId = null) {
-    await refreshStoredDatasetsForCompare();
+    const repairResult = await repairStoredDatasetIdentities();
+    if (repairResult?.repaired) setStatus('Saved dataset identities were repaired. If comparison still looks wrong, clear recent datasets and reload the files.', 'warning');
     if ((STATE.storedDatasets || []).length < 2) { setStatus('Compare needs at least 2 saved datasets.', 'warning'); return; }
-    syncCompareSelectors(preferredBaselineId);
+    await syncCompareSelectors(preferredBaselineId);
     const modal = document.getElementById('compareModal');
     if (modal) {
       modal.classList.add('open');
@@ -1844,6 +1864,8 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     const modal = document.getElementById('compareModal');
     if (modal) {
       modal.classList.remove('open');
+      modal.classList.remove('show');
+      modal.style.pointerEvents = '';
       document.body.classList.remove('modal-open');
       STATE.compare.modalOpen = false;
       console.info('[compare] Modal closed');
@@ -1882,8 +1904,8 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     const baselineId = document.getElementById('compareBaselineSelect')?.value;
     if (!currentId || !baselineId) { setStatus('Choose both current and comparison datasets.', 'warning'); return; }
     if (currentId === baselineId) { setStatus('Current and baseline dataset cannot be the same.', 'warning'); updateCompareMetaPreview(); return; }
-    const currentSnapshot = (STATE.storedDatasets || []).find(x => x.id === currentId) || await getStoredDatasetById(currentId);
-    const baselineSnapshot = (STATE.storedDatasets || []).find(x => x.id === baselineId) || await getStoredDatasetById(baselineId);
+    const currentSnapshot = await getStoredDatasetById(currentId);
+    const baselineSnapshot = await getStoredDatasetById(baselineId);
     if (!currentSnapshot || !baselineSnapshot) { setStatus('Selected datasets could not be loaded from local storage.', 'error'); return; }
     if (!hasValidSnapshotPayload(currentSnapshot) || !hasValidSnapshotPayload(baselineSnapshot)) { setStatus('Only fully validated saved datasets can be compared.', 'error'); return; }
     const compareValidation = validateComparisonCompatibility(currentSnapshot, baselineSnapshot);
@@ -1891,7 +1913,8 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     console.info('[compare] Validation passed');
     const metrics = computeComparisonMetrics(currentSnapshot, baselineSnapshot);
     console.info('[compare] Comparison metrics computed');
-    restoreDatasetSnapshot(currentSnapshot, { preserveCompare: false });
+    const shouldRestoreCurrent = STATE.activeSnapshotId !== currentId;
+    if (shouldRestoreCurrent) restoreDatasetSnapshot(currentSnapshot, { preserveCompare: true });
     STATE.compare = { ...STATE.compare, active: true, currentDatasetId: currentId, baselineDatasetId: baselineId, appliedCurrentDatasetId: currentId, appliedBaselineDatasetId: baselineId, baselineSnapshot, currentSnapshot, validation: compareValidation, warnings: compareValidation.warnings || [], metrics };
     console.info('[compare] Comparison state applied');
     const meta = document.getElementById('compareMeta');
