@@ -8041,11 +8041,30 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     STATE.pressImpactModel = pressAbnormalityModel;
     renderCompactPressImpactMatrix(pressAbnormalityModel);
     renderPressOutliersList(pressAbnormalityModel);
+    console.info('[chart-diagnostics][before-renderTopSubsystems]', {
+      errorsAggExists: Array.isArray(sourceScope?.errorsAgg),
+      volumeAggExists: Array.isArray(sourceScope?.volumeAgg),
+      availabilityAggExists: Array.isArray(sourceScope?.availabilityAgg),
+      errorsAggCount: sourceScope?.errorsAgg?.length || 0,
+      volumeAggCount: sourceScope?.volumeAgg?.length || 0,
+      availabilityAggCount: sourceScope?.availabilityAgg?.length || 0,
+      chartCanvasExists: !!document.getElementById('subsystemChart')
+    });
     const subsystemRankings = safeRankingRender('subsystem');
     const alertRankings = safeRankingRender('alert');
+    console.info('[chart-diagnostics][before-renderTopVersions]', {
+      errorsAggExists: Array.isArray(sourceScope?.errorsAgg),
+      rowCount: sourceScope?.errorsAgg?.length || 0,
+      chartCanvasExists: !!document.getElementById('versionChart')
+    });
     const versionRankings = safeRankingRender('version');
     renderVersionDurationChart(versionRankings);
     STATE.customerVolumeMode = STATE.customerVolumeMetric === 'wastePrintedSheets' ? 'waste' : (STATE.customerVolumeMetric === 'goodPrintedSheets' ? 'good' : (STATE.customerVolumeMetric === 'wasteRatio' ? 'wasteRatio' : 'total'));
+    console.info('[chart-diagnostics][before-renderPrintVolume]', {
+      volumeAggExists: Array.isArray(sourceScope?.volumeAgg),
+      rowCount: sourceScope?.volumeAgg?.length || 0,
+      chartCanvasExists: !!document.getElementById('customerVolumeChart')
+    });
     const { chartRows: visibleCustomerVolumeRows, fullRows: allCustomerVolumeRows } = buildCustomerVolumeChart(sourceScope.volumeAgg, STATE.customerVolumeMetric, STATE.customerVolumeSort, STATE.customerVolumeExpanded);
     STATE.customerVolumeRows = visibleCustomerVolumeRows;
     const aggByPress = (sourceScope.volumeAgg || []).reduce((map, row) => {
@@ -8062,7 +8081,7 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       const chartVolume = Number(row.goodSheets || row.productionPrintedSheets || row.printedSheets || 0);
       const chartWaste = Number(row.wasteSheets || row.wastePrintedSheets || 0);
       if (!nearlyEqual(chartVolume, agg.volume, 0.00001) || !nearlyEqual(chartWaste, agg.waste, 0.00001)) {
-        validationState.info.push({ id: 'cross-layer-scope-info', press, reason: 'chart/drilldown scope differs; strict compare skipped' });
+        console.info('[cross-layer-scope-info]', { press, reason: 'chart/drilldown scope differs; strict compare skipped' });
       }
     });
     STATE.customerVolumeAllRows = allCustomerVolumeRows;
@@ -8155,7 +8174,7 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     }
     const totalSheetsInScope = (sourceScope.volumeAgg || []).reduce((sum, row) => sum + Number(row?.totalPrintedSheets || ((row?.goodPrintedSheets || 0) + (row?.wastePrintedSheets || 0))), 0);
     const wasteRatioInScope = totalSheetsInScope > 0 ? (wasteFromAggRows / totalSheetsInScope) : 0;
-    const detectedSpecialInNormalization = (sourceScope?.wasteDetection?.normalizedJobTypeValues || []).includes('special') || (normalizedJobTypes.get('special') || 0) > 0;
+    const detectedSpecialInNormalization = (sourceScope?.wasteDetection?.normalizedJobTypeValues || []).includes('special') || normalizedJobTypes.includes('special');
     if (detectedSpecialInNormalization && wasteFromAggRows === 0) {
       console.warn('Waste detection failed despite Special values');
     }
@@ -8185,6 +8204,11 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     renderRiskSection(STATE.merged.pressRisk);
     STATE.merged.summary = executiveSummary;
     renderExecutiveSummaryCard(STATE.merged.summary);
+    console.info('[chart-diagnostics][before-renderAvailability]', {
+      availabilityAggExists: Array.isArray(sourceScope?.availabilityAgg),
+      rowCount: sourceScope?.availabilityAgg?.length || 0,
+      chartCanvasExists: !!document.getElementById('availabilityByPressChart') || !!document.getElementById('availabilityTrendChart')
+    });
     renderCommandCenterExtras(sourceScope, STATE.kpis, STATE.merged.summary);
     enhanceChartCards();
     const mismatches = validateSourceAndLayerConsistency(sourceScope, STATE.filtered, STATE.kpis, STATE.merged.summary, STATE.merged.pressRisk, allCustomerVolumeRows);
