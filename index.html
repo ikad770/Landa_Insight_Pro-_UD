@@ -1357,7 +1357,6 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
   const COLORS = [SEMANTIC_COLORS.critical, SEMANTIC_COLORS.elevated, SEMANTIC_COLORS.normal, SEMANTIC_COLORS.low, SEMANTIC_COLORS.neutral];
   const DEBUG = false;
 
-  // TODO: Compare feature removed temporarily. Rebuild later as isolated module.
   const DATASET_DB_NAME = 'landa-insightpro-datasets';
   const DATASET_DB_VERSION = 1;
   const DATASET_STORE = 'datasets';
@@ -8019,8 +8018,6 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       setStatus('Validation mismatch detected. Rendering continues with best validated source data.', 'warning');
     }
     syncMetricToggleUI();
-    updateComparisonContextUI();
-    renderComparisonExecutiveRow();
     renderKpis(STATE.kpis);
     const safeRankingRender = (key) => {
       try {
@@ -8085,8 +8082,12 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       }
     });
     STATE.customerVolumeAllRows = allCustomerVolumeRows;
-    const printVolumeValidation = validatePrintVolumeChartState(sourceScope, allCustomerVolumeRows);
-    if (!printVolumeValidation.ok) setStatus('Print Volume validation warning: chart values may be inconsistent. Check console for details.', 'warning');
+    try {
+      const printVolumeValidation = validatePrintVolumeChartState(sourceScope, allCustomerVolumeRows);
+      if (!printVolumeValidation.ok) setStatus('Print Volume validation warning: chart values may be inconsistent. Check console for details.', 'warning');
+    } catch (validationError) {
+      console.warn('[print-volume-validation-warning]', validationError);
+    }
     const customerVolumeRendered = renderVolumeByPressChart(visibleCustomerVolumeRows, sourceScope.hasWasteData !== false);
     CHART_EXPANDED_CONFIGS.set('customerVolumeChart', cloneChartConfig(buildPrintVolumeChartConfig(allCustomerVolumeRows, { hasWasteData: sourceScope.hasWasteData !== false, unit: STATE.customerVolumeUnit, expanded: true })));
     CHART_DEFAULT_EXPANDED_CONFIGS.set('customerVolumeChart', cloneChartConfig(buildPrintVolumeChartConfig(allCustomerVolumeRows.slice(0, 15), { hasWasteData: sourceScope.hasWasteData !== false, unit: STATE.customerVolumeUnit, expanded: true })));
@@ -8112,86 +8113,90 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     console.info(`Validation status: ${wasteConsistency.ok ? 'GREEN' : 'RED'}`);
     console.groupEnd();
     if (!visibleCustomerVolumeRows.length) setCanvasState('customerVolumeChart', 'No print volume rows after source-native scope (volume owns press/day and native job metadata).');
-    const totalWasteInScope = allCustomerVolumeRows.reduce((sum, row) => sum + Number(row.wasteSheets || row.wastePrintedSheets || 0), 0);
-    const normalizedJobTypes = [...new Set((sourceScope.filteredVolumeRowsNative || []).map(row => normalizeJobType(row?.jobType)).filter(Boolean))].sort();
-    const wasteFromRawRows = (sourceScope.filteredVolumeRowsNative || []).reduce((sum, row) => (
-      sum + (isSpecialJobType(row?.jobType) ? Number(row?.printedSheets || 0) : 0)
-    ), 0);
-    const specialRowCount = (sourceScope.filteredVolumeRowsNative || []).filter(r => isSpecialJobType(r?.jobType)).length;
-    const wasteFromAggRows = (sourceScope.volumeAgg || []).reduce((sum, row) => sum + Number(row?.wastePrintedSheets || 0), 0);
-    const wastePlottedInChart = totalWasteInScope;
-    const wasteByPressRaw = (sourceScope.filteredVolumeRowsNative || []).reduce((map, row) => {
-      const press = row?.canonicalPress || 'Unspecified';
-      const waste = isSpecialJobType(row?.jobType) ? Number(row?.printedSheets || 0) : 0;
-      map.set(press, (map.get(press) || 0) + waste);
-      return map;
-    }, new Map());
-    const wasteByPressAgg = (sourceScope.volumeAgg || []).reduce((map, row) => {
-      const press = row?.canonicalPress || 'Unspecified';
-      map.set(press, (map.get(press) || 0) + Number(row?.wastePrintedSheets || 0));
-      return map;
-    }, new Map());
-    const wasteByPressChart = (allCustomerVolumeRows || []).reduce((map, row) => {
-      const press = row?.canonicalPress || row?.entityKey || 'Unspecified';
-      map.set(press, (map.get(press) || 0) + Number(row?.wastePrintedSheets || 0));
-      return map;
-    }, new Map());
-    console.log('[volume-waste-check]', {
-      rawWaste: wasteFromRawRows,
-      aggWaste: wasteFromAggRows,
-      chartWasteAll: (allCustomerVolumeRows || []).reduce((sum, row) => sum + Number(row?.wastePrintedSheets || 0), 0)
-    });
-    const wasteMismatches = [...new Set([...wasteByPressRaw.keys(), ...wasteByPressAgg.keys(), ...wasteByPressChart.keys()])]
-      .filter(press => {
-        const raw = wasteByPressRaw.get(press) || 0;
-        const agg = wasteByPressAgg.get(press) || 0;
-        const chart = wasteByPressChart.get(press) || 0;
-        return hasSignificantDiff(raw, agg) || hasSignificantDiff(agg, chart);
-      });
-    console.info('[waste-validation-debug]', {
-      uniqueNormalizedJobTypes: normalizedJobTypes,
-      specialRowCount,
-      totalWasteFromRawRows: wasteFromRawRows,
-      totalWasteFromVolumeAgg: wasteFromAggRows,
-      totalWastePlottedInChart: wastePlottedInChart,
-      parityPass: !hasSignificantDiff(wasteFromRawRows, wasteFromAggRows) && !hasSignificantDiff(wasteFromAggRows, wastePlottedInChart) && wasteMismatches.length === 0,
-      mismatchedPressCount: wasteMismatches.length,
-      mismatchedPressesPreview: wasteMismatches.slice(0, 12)
-    });
-    if (wasteFromRawRows > 0 && totalWasteInScope <= 0) {
-      console.error('WASTE ERROR');
-      console.error('WASTE PIPELINE ERROR');
-    }
-    if (totalWasteInScope <= 0) {
-      const hasVolumeRows = (sourceScope.filteredVolumeRowsNative || []).length > 0;
-      const hasSpecialRows = (sourceScope.filteredVolumeRowsNative || []).some(r => isSpecialJobType(r.jobType));
-      const reason = !hasVolumeRows
-        ? 'No filtered volume rows in current scope.'
-        : hasSpecialRows
-          ? 'Special rows exist but printed sheets sum to 0 after parsing.'
-          : 'No rows mapped to normalized job_type == "special".';
-      console.info('[waste-debug] no waste detected after normalization and mapping verification', { reason });
-    }
-    const totalSheetsInScope = (sourceScope.volumeAgg || []).reduce((sum, row) => sum + Number(row?.totalPrintedSheets || ((row?.goodPrintedSheets || 0) + (row?.wastePrintedSheets || 0))), 0);
-    const wasteRatioInScope = totalSheetsInScope > 0 ? (wasteFromAggRows / totalSheetsInScope) : 0;
-    const detectedSpecialInNormalization = (sourceScope?.wasteDetection?.normalizedJobTypeValues || []).includes('special') || normalizedJobTypes.includes('special');
-    if (detectedSpecialInNormalization && wasteFromAggRows === 0) {
-      console.warn('Waste detection failed despite Special values');
-    }
+    try {
+          const totalWasteInScope = allCustomerVolumeRows.reduce((sum, row) => sum + Number(row.wasteSheets || row.wastePrintedSheets || 0), 0);
+          const normalizedJobTypes = [...new Set((sourceScope.filteredVolumeRowsNative || []).map(row => normalizeJobType(row?.jobType)).filter(Boolean))].sort();
+          const wasteFromRawRows = (sourceScope.filteredVolumeRowsNative || []).reduce((sum, row) => (
+            sum + (isSpecialJobType(row?.jobType) ? Number(row?.printedSheets || 0) : 0)
+          ), 0);
+          const specialRowCount = (sourceScope.filteredVolumeRowsNative || []).filter(r => isSpecialJobType(r?.jobType)).length;
+          const wasteFromAggRows = (sourceScope.volumeAgg || []).reduce((sum, row) => sum + Number(row?.wastePrintedSheets || 0), 0);
+          const wastePlottedInChart = totalWasteInScope;
+          const wasteByPressRaw = (sourceScope.filteredVolumeRowsNative || []).reduce((map, row) => {
+            const press = row?.canonicalPress || 'Unspecified';
+            const waste = isSpecialJobType(row?.jobType) ? Number(row?.printedSheets || 0) : 0;
+            map.set(press, (map.get(press) || 0) + waste);
+            return map;
+          }, new Map());
+          const wasteByPressAgg = (sourceScope.volumeAgg || []).reduce((map, row) => {
+            const press = row?.canonicalPress || 'Unspecified';
+            map.set(press, (map.get(press) || 0) + Number(row?.wastePrintedSheets || 0));
+            return map;
+          }, new Map());
+          const wasteByPressChart = (allCustomerVolumeRows || []).reduce((map, row) => {
+            const press = row?.canonicalPress || row?.entityKey || 'Unspecified';
+            map.set(press, (map.get(press) || 0) + Number(row?.wastePrintedSheets || 0));
+            return map;
+          }, new Map());
+          console.log('[volume-waste-check]', {
+            rawWaste: wasteFromRawRows,
+            aggWaste: wasteFromAggRows,
+            chartWasteAll: (allCustomerVolumeRows || []).reduce((sum, row) => sum + Number(row?.wastePrintedSheets || 0), 0)
+          });
+          const wasteMismatches = [...new Set([...wasteByPressRaw.keys(), ...wasteByPressAgg.keys(), ...wasteByPressChart.keys()])]
+            .filter(press => {
+              const raw = wasteByPressRaw.get(press) || 0;
+              const agg = wasteByPressAgg.get(press) || 0;
+              const chart = wasteByPressChart.get(press) || 0;
+              return hasSignificantDiff(raw, agg) || hasSignificantDiff(agg, chart);
+            });
+          console.info('[waste-validation-debug]', {
+            uniqueNormalizedJobTypes: normalizedJobTypes,
+            specialRowCount,
+            totalWasteFromRawRows: wasteFromRawRows,
+            totalWasteFromVolumeAgg: wasteFromAggRows,
+            totalWastePlottedInChart: wastePlottedInChart,
+            parityPass: !hasSignificantDiff(wasteFromRawRows, wasteFromAggRows) && !hasSignificantDiff(wasteFromAggRows, wastePlottedInChart) && wasteMismatches.length === 0,
+            mismatchedPressCount: wasteMismatches.length,
+            mismatchedPressesPreview: wasteMismatches.slice(0, 12)
+          });
+          if (wasteFromRawRows > 0 && totalWasteInScope <= 0) {
+            console.error('WASTE ERROR');
+            console.error('WASTE PIPELINE ERROR');
+          }
+          if (totalWasteInScope <= 0) {
+            const hasVolumeRows = (sourceScope.filteredVolumeRowsNative || []).length > 0;
+            const hasSpecialRows = (sourceScope.filteredVolumeRowsNative || []).some(r => isSpecialJobType(r.jobType));
+            const reason = !hasVolumeRows
+              ? 'No filtered volume rows in current scope.'
+              : hasSpecialRows
+                ? 'Special rows exist but printed sheets sum to 0 after parsing.'
+                : 'No rows mapped to normalized job_type == "special".';
+            console.info('[waste-debug] no waste detected after normalization and mapping verification', { reason });
+          }
+          const totalSheetsInScope = (sourceScope.volumeAgg || []).reduce((sum, row) => sum + Number(row?.totalPrintedSheets || ((row?.goodPrintedSheets || 0) + (row?.wastePrintedSheets || 0))), 0);
+          const wasteRatioInScope = totalSheetsInScope > 0 ? (wasteFromAggRows / totalSheetsInScope) : 0;
+          const detectedSpecialInNormalization = (sourceScope?.wasteDetection?.normalizedJobTypeValues || []).includes('special') || normalizedJobTypes.includes('special');
+          if (detectedSpecialInNormalization && wasteFromAggRows === 0) {
+            console.warn('Waste detection failed despite Special values');
+          }
 
-    console.info('[waste-debug] computed-waste', {
-      specialRowCount,
-      computedWasteSheets: wasteFromAggRows,
-      totalPrintedSheets: totalSheetsInScope,
-      wasteLessThanTotal: wasteFromAggRows < totalSheetsInScope,
-      wasteRatioPercent: Number((wasteRatioInScope * 100).toFixed(3)),
-      wasteRatioUnderFiftyPercent: wasteRatioInScope < 0.5,
-      goodPlusWasteApproxTotal: nearlyEqual(
-        (sourceScope.volumeAgg || []).reduce((sum, row) => sum + Number(row?.goodPrintedSheets || 0) + Number(row?.wastePrintedSheets || 0), 0),
-        totalSheetsInScope,
-        0.00001
-      )
-    });
+          console.info('[waste-debug] computed-waste', {
+            specialRowCount,
+            computedWasteSheets: wasteFromAggRows,
+            totalPrintedSheets: totalSheetsInScope,
+            wasteLessThanTotal: wasteFromAggRows < totalSheetsInScope,
+            wasteRatioPercent: Number((wasteRatioInScope * 100).toFixed(3)),
+            wasteRatioUnderFiftyPercent: wasteRatioInScope < 0.5,
+            goodPlusWasteApproxTotal: nearlyEqual(
+              (sourceScope.volumeAgg || []).reduce((sum, row) => sum + Number(row?.goodPrintedSheets || 0) + Number(row?.wastePrintedSheets || 0), 0),
+              totalSheetsInScope,
+              0.00001
+            )
+          });
+    } catch (wasteDebugError) {
+      console.warn('[waste-debug-warning]', wasteDebugError);
+    }
     if (!customerVolumeRendered) setCanvasState('customerVolumeChart', 'Chart library failed to load. Charts cannot render.', 'error');
     document.getElementById('customerVolumeNote').textContent = STATE.customerVolumeExpanded ? 'Full press volume view. Sorted by total volume.' : 'Top 5 presses by total volume. Click Expand for full list.';
     document.getElementById('customerVolumeExpand').textContent = STATE.customerVolumeExpanded ? 'Collapse' : 'Show all';
@@ -8211,14 +8216,21 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     });
     renderCommandCenterExtras(sourceScope, STATE.kpis, STATE.merged.summary);
     enhanceChartCards();
-    const mismatches = validateSourceAndLayerConsistency(sourceScope, STATE.filtered, STATE.kpis, STATE.merged.summary, STATE.merged.pressRisk, allCustomerVolumeRows);
-    STATE.reconciliation.logs = mismatches;
-    STATE.reconciliation.report = buildReconciliationReport(sourceScope, STATE.kpis, {
-      press: pressRankings,
-      subsystem: subsystemRankings,
-      alert: alertRankings,
-      version: versionRankings
-    }, allCustomerVolumeRows);
+    let mismatches = [];
+    try {
+      mismatches = validateSourceAndLayerConsistency(sourceScope, STATE.filtered, STATE.kpis, STATE.merged.summary, STATE.merged.pressRisk, allCustomerVolumeRows);
+      STATE.reconciliation.logs = mismatches;
+      STATE.reconciliation.report = buildReconciliationReport(sourceScope, STATE.kpis, {
+        press: pressRankings,
+        subsystem: subsystemRankings,
+        alert: alertRankings,
+        version: versionRankings
+      }, allCustomerVolumeRows);
+    } catch (reconciliationError) {
+      console.warn('[reconciliation-warning]', reconciliationError);
+      STATE.reconciliation.logs = [];
+      STATE.reconciliation.report = null;
+    }
     console.info('[volume-validation]', {
       rawPrintedSheetsFromVolumeAgg: sourceScope.volumeAgg.reduce((a, r) => a + (r.printedSheets || 0), 0),
       productionOnlyPrintedSheetsFromVolumeAgg: sourceScope.volumeAgg.reduce((a, r) => a + (r.productionPrintedSheets || 0), 0),
