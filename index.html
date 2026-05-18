@@ -1268,7 +1268,7 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
   <section class="compare-panel">
     <div class="chart-head">
       <h3 style="margin:0;">Compare Datasets</h3>
-      <button id="closeCompareBtn" class="btn">Close</button>
+      <button id="closeCompareBtn" class="btn" type="button">Close</button>
     </div>
     <p class="micro">Select the current reporting snapshot and the comparison baseline. The dashboard will stay on the current period and show KPI deltas against the selected baseline.</p>
     <div class="compare-grid">
@@ -1286,8 +1286,8 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     <div class="compare-foot">
       <div id="compareSummaryText" class="compare-summary">Choose two saved datasets to compare KPI changes across the command center.</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button id="clearCompareBtn" class="btn secondary">Clear compare</button>
-        <button id="applyCompareBtn" class="btn primary">Apply compare</button>
+        <button id="clearCompareBtn" class="btn secondary" type="button">Clear compare</button>
+        <button id="applyCompareBtn" class="btn primary" type="button">Apply compare</button>
       </div>
     </div>
   </section>
@@ -1408,7 +1408,7 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     renderQueued: false,
     storedDatasets: [],
     activeSnapshotId: null,
-    compare: { modalOpen: false, currentDatasetId: null, baselineDatasetId: null, active: false, appliedCurrentDatasetId: null, appliedBaselineDatasetId: null, metrics: null, warnings: [], baselineSnapshot: null, currentSnapshot: null },
+    compare: { modalOpen: false, active: false, currentDatasetId: null, baselineDatasetId: null, appliedCurrentDatasetId: null, appliedBaselineDatasetId: null, currentSnapshot: null, baselineSnapshot: null, metrics: null, warnings: [] },
   };
 
   const APP_VERSION = 'InsightPro+ v1.6.0';
@@ -1760,6 +1760,31 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     console.info('[compare] Comparison cleared');
     if (reRender && STATE.merged?.events?.length) renderDashboard();
   }
+  function dedupeStoredDatasetIds(items = []) {
+    const seen = new Map();
+    let repaired = false;
+    const repairedItems = items.map(entry => {
+      const currentId = String(entry?.id || '').trim();
+      const count = seen.get(currentId) || 0;
+      seen.set(currentId, count + 1);
+      if (!currentId || count > 0) {
+        repaired = true;
+        return { ...entry, id: `ds_${Date.now()}_${Math.random().toString(36).slice(2, 8)}` };
+      }
+      return entry;
+    });
+    if (repaired) console.warn('[compare] Duplicate or missing dataset ids detected. Regenerated duplicate ids only.');
+    return { repairedItems, repaired };
+  }
+  async function refreshStoredDatasetsForCompare() {
+    const fromDb = await getStoredDatasetsDetailed().catch(() => []);
+    const { repairedItems, repaired } = dedupeStoredDatasetIds(fromDb);
+    if (repaired) {
+      for (const row of repairedItems) await saveStoredDataset(row);
+    }
+    STATE.storedDatasets = repairedItems;
+    return repairedItems;
+  }
   function syncCompareSelectors(preferredBaselineId = null) {
     const currentSel = document.getElementById('compareCurrentSelect');
     const baselineSel = document.getElementById('compareBaselineSelect');
@@ -1768,11 +1793,14 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     const options = items.map(entry => `<option value="${esc(entry.id)}">${esc(formatSnapshotLabel(entry))} — ${esc(formatSnapshotMeta(entry))}</option>`).join('');
     currentSel.innerHTML = options || '<option value="">No saved datasets</option>';
     baselineSel.innerHTML = options || '<option value="">No saved datasets</option>';
-    const currentId = STATE.activeSnapshotId || items[0]?.id || '';
+    const activeExists = !!items.find(x => x.id === STATE.activeSnapshotId);
+    const currentId = (activeExists ? STATE.activeSnapshotId : items[0]?.id) || '';
     currentSel.value = currentId;
-    baselineSel.value = preferredBaselineId || items.find(x => x.id !== currentId)?.id || '';
+    const preferred = preferredBaselineId && items.find(x => x.id === preferredBaselineId) ? preferredBaselineId : null;
+    baselineSel.value = preferred || items.find(x => x.id !== currentId)?.id || '';
     STATE.compare.currentDatasetId = currentSel.value || null;
     STATE.compare.baselineDatasetId = baselineSel.value || null;
+    console.info('[compare] Selector sync', items.map(x => ({ id: x.id, label: formatSnapshotLabel(x) })));
     updateCompareMetaPreview();
   }
   function updateCompareMetaPreview() {
@@ -1787,13 +1815,20 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     if (currentMeta) currentMeta.textContent = current ? formatSnapshotMeta(current) : 'No current dataset selected.';
     if (baselineMeta) baselineMeta.textContent = baseline ? formatSnapshotMeta(baseline) : 'No baseline selected.';
     const sameDataset = !!(current?.id && baseline?.id && current.id === baseline.id);
-    if (summary) summary.textContent = sameDataset
-      ? 'Current and baseline dataset cannot be the same.'
-      : (current && baseline ? `Comparing ${formatSnapshotLabel(current)} against ${formatSnapshotLabel(baseline)}.` : 'Choose two saved datasets to compare KPI changes across the command center.');
+    let reason = '';
+    if (!currentSel?.value) reason = 'missing current';
+    else if (!baselineSel?.value) reason = 'missing baseline';
+    else if (sameDataset) reason = 'same dataset';
+    else if (!current || !baseline) reason = 'invalid snapshot';
+    else if (!current?.payload?.kpis || !baseline?.payload?.kpis) reason = 'missing KPI payload';
+    if (summary) summary.textContent = reason
+      ? `Apply compare blocked: ${reason}.`
+      : `Comparing ${formatSnapshotLabel(current)} against ${formatSnapshotLabel(baseline)}.`;
     const applyBtn = document.getElementById('applyCompareBtn');
-    if (applyBtn) applyBtn.disabled = sameDataset || !current || !baseline;
+    if (applyBtn) applyBtn.disabled = !!reason;
   }
-  function openCompareModal(preferredBaselineId = null) {
+  async function openCompareModal(preferredBaselineId = null) {
+    await refreshStoredDatasetsForCompare();
     if ((STATE.storedDatasets || []).length < 2) { setStatus('Compare needs at least 2 saved datasets.', 'warning'); return; }
     syncCompareSelectors(preferredBaselineId);
     const modal = document.getElementById('compareModal');
@@ -1847,8 +1882,8 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     const baselineId = document.getElementById('compareBaselineSelect')?.value;
     if (!currentId || !baselineId) { setStatus('Choose both current and comparison datasets.', 'warning'); return; }
     if (currentId === baselineId) { setStatus('Current and baseline dataset cannot be the same.', 'warning'); updateCompareMetaPreview(); return; }
-    const currentSnapshot = await getStoredDatasetById(currentId);
-    const baselineSnapshot = await getStoredDatasetById(baselineId);
+    const currentSnapshot = (STATE.storedDatasets || []).find(x => x.id === currentId) || await getStoredDatasetById(currentId);
+    const baselineSnapshot = (STATE.storedDatasets || []).find(x => x.id === baselineId) || await getStoredDatasetById(baselineId);
     if (!currentSnapshot || !baselineSnapshot) { setStatus('Selected datasets could not be loaded from local storage.', 'error'); return; }
     if (!hasValidSnapshotPayload(currentSnapshot) || !hasValidSnapshotPayload(baselineSnapshot)) { setStatus('Only fully validated saved datasets can be compared.', 'error'); return; }
     const compareValidation = validateComparisonCompatibility(currentSnapshot, baselineSnapshot);
@@ -1923,7 +1958,7 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     if (!host) return;
     if (!STATE.compare?.active || !STATE.compare?.baselineSnapshot) { host.classList.remove('active'); host.innerHTML = ''; return; }
     const defs = [
-      ['Downtime trend','downtime',false],['MTTR trend','mttr',false],['Waste Ratio trend','wasteRatio',false],['Availability trend','availability',true],['Volume trend','volume',true],['Critical Alerts trend','events',false]
+      ['Downtime','downtime',false],['MTTR','mttr',false],['MTBF','mtbf',true],['Volume','volume',true],['Waste Ratio','wasteRatio',false],['Availability','availability',true]
     ];
     host.innerHTML = defs.map(([label,key,higherBetter]) => {
       const d = buildCompareDelta(key);
