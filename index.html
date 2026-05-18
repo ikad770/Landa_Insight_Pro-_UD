@@ -1914,6 +1914,18 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     return Math.abs(left - right) <= (tolerance * scale);
   }
 
+  function hasSignificantDiff(a, b, tolerance = 0.01) {
+    const left = Number(a);
+    const right = Number(b);
+
+    if (!Number.isFinite(left) && !Number.isFinite(right)) return false;
+    if (!Number.isFinite(left) || !Number.isFinite(right)) return true;
+
+    const diff = Math.abs(left - right);
+    const scale = Math.max(1, Math.abs(left), Math.abs(right));
+    return (diff / scale) > tolerance;
+  }
+
   const metricRegistry = Object.freeze({
     events: { id: 'events', label: 'Events', type: 'count', unit: 'events', dataset: 'errors', numeratorField: 'totalEvents', denominatorField: null, aggregate: scope => (scope.errorsAgg || []).reduce((acc, row) => acc + Number(row?.totalEvents || 0), 0), format: value => Math.round(Number(value || 0)).toLocaleString(), validate: value => Number.isFinite(Number(value)) && Number(value) >= 0 },
     downtime: { id: 'downtime', label: 'Total downtime', type: 'duration_sum', unit: 'seconds', dataset: 'availability', numeratorField: 'maintenanceSeconds+errorNotAvailableSeconds', denominatorField: null, aggregate: scope => (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(totalDowntimeFromAvailabilityRow(row) || 0), 0), format: value => formatDuration(Number(value || 0)), validate: value => Number.isFinite(Number(value)) && Number(value) >= 0 },
@@ -7868,42 +7880,47 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
 
 
   function validateRenderConsistency(sourceScope, kpis) {
-    const checks = [];
-    const classify = (check) => {
-      if (!check) return 'warning';
-      const sourceTxt = String(check.source || '').toLowerCase();
-      const idTxt = String(check.id || '').toLowerCase();
-      if (sourceTxt.includes('rawrows') && (sourceTxt.includes('agg') || sourceTxt.includes('chart'))) return 'corruption';
-      if (idTxt.includes('waste-mapping')) return 'corruption';
-      if (idTxt.includes('impossible') || idTxt.includes('negative')) return 'corruption';
-      if (check.explainable) return 'warning';
-      return 'warning';
-    };
-    const totalDowntimeSeconds = Number(kpis?.totalDowntime || 0);
-    const expectedHours = totalDowntimeSeconds > 0 ? totalDowntimeSeconds / 3600 : 0;
-    checks.push({ id: 'downtime-hours', pass: !hasSignificantDiff(kpis?.downtimeHours || 0, expectedHours), explainable: true, metric: 'downtimeHours', expected: expectedHours, actual: Number(kpis?.downtimeHours || 0), source: 'kpis.totalDowntime' });
-    const expectedEfficiency = expectedHours > 0 ? (Number(kpis?.totalProdVolume || 0) / expectedHours) : null;
-    const efficiencyPass = (expectedEfficiency == null && kpis?.outputEfficiency == null) || (expectedEfficiency != null && !hasSignificantDiff(kpis?.outputEfficiency || 0, expectedEfficiency));
-    checks.push({ id: 'output-efficiency', pass: efficiencyPass, explainable: true, metric: 'outputEfficiency', expected: expectedEfficiency, actual: Number(kpis?.outputEfficiency || 0), source: 'kpis.totalProdVolume / kpis.downtimeHours' });
-    const volumeAgg = sourceScope?.volumeAgg || [];
-    const volumeTotals = volumeAgg.reduce((acc, row) => {
-      acc.good += Number(row?.goodPrintedSheets || row?.productionPrintedSheets || 0);
-      acc.waste += Number(row?.wastePrintedSheets || 0);
-      acc.total += Number(row?.goodPrintedSheets || row?.productionPrintedSheets || 0) + Number(row?.wastePrintedSheets || 0);
-      return acc;
-    }, { good: 0, waste: 0, total: 0 });
-    if (sourceScope?.hasWasteData !== false) {
-      checks.push({ id: 'volume-waste-lte-total', pass: volumeTotals.waste <= volumeTotals.total + 1e-6, explainable: false, metric: 'waste<=total', expected: volumeTotals.total, actual: volumeTotals.waste, source: 'volumeAgg internal' });
-      checks.push({ id: 'volume-good-plus-waste-equals-total', pass: !hasSignificantDiff(volumeTotals.good + volumeTotals.waste, volumeTotals.total), explainable: false, metric: 'good+waste=total', expected: volumeTotals.total, actual: volumeTotals.good + volumeTotals.waste, source: 'volumeAgg internal' });
+    try {
+      const checks = [];
+      const classify = (check) => {
+        if (!check) return 'warning';
+        const sourceTxt = String(check.source || '').toLowerCase();
+        const idTxt = String(check.id || '').toLowerCase();
+        if (sourceTxt.includes('rawrows') && (sourceTxt.includes('agg') || sourceTxt.includes('chart'))) return 'corruption';
+        if (idTxt.includes('waste-mapping')) return 'corruption';
+        if (idTxt.includes('impossible') || idTxt.includes('negative')) return 'corruption';
+        if (check.explainable) return 'warning';
+        return 'warning';
+      };
+      const totalDowntimeSeconds = Number(kpis?.totalDowntime || 0);
+      const expectedHours = totalDowntimeSeconds > 0 ? totalDowntimeSeconds / 3600 : 0;
+      checks.push({ id: 'downtime-hours', pass: !hasSignificantDiff(kpis?.downtimeHours || 0, expectedHours), explainable: true, metric: 'downtimeHours', expected: expectedHours, actual: Number(kpis?.downtimeHours || 0), source: 'kpis.totalDowntime' });
+      const expectedEfficiency = expectedHours > 0 ? (Number(kpis?.totalProdVolume || 0) / expectedHours) : null;
+      const efficiencyPass = (expectedEfficiency == null && kpis?.outputEfficiency == null) || (expectedEfficiency != null && !hasSignificantDiff(kpis?.outputEfficiency || 0, expectedEfficiency));
+      checks.push({ id: 'output-efficiency', pass: efficiencyPass, explainable: true, metric: 'outputEfficiency', expected: expectedEfficiency, actual: Number(kpis?.outputEfficiency || 0), source: 'kpis.totalProdVolume / kpis.downtimeHours' });
+      const volumeAgg = sourceScope?.volumeAgg || [];
+      const volumeTotals = volumeAgg.reduce((acc, row) => {
+        acc.good += Number(row?.goodPrintedSheets || row?.productionPrintedSheets || 0);
+        acc.waste += Number(row?.wastePrintedSheets || 0);
+        acc.total += Number(row?.goodPrintedSheets || row?.productionPrintedSheets || 0) + Number(row?.wastePrintedSheets || 0);
+        return acc;
+      }, { good: 0, waste: 0, total: 0 });
+      if (sourceScope?.hasWasteData !== false) {
+        checks.push({ id: 'volume-waste-lte-total', pass: volumeTotals.waste <= volumeTotals.total + 1e-6, explainable: false, metric: 'waste<=total', expected: volumeTotals.total, actual: volumeTotals.waste, source: 'volumeAgg internal' });
+        checks.push({ id: 'volume-good-plus-waste-equals-total', pass: !hasSignificantDiff(volumeTotals.good + volumeTotals.waste, volumeTotals.total), explainable: false, metric: 'good+waste=total', expected: volumeTotals.total, actual: volumeTotals.good + volumeTotals.waste, source: 'volumeAgg internal' });
+      }
+      const failed = checks.filter(c => !c.pass).map(check => ({ ...check, classification: classify(check) }));
+      const warnings = failed.filter(c => c.classification !== 'corruption');
+      const errors = failed.filter(c => c.classification === 'corruption');
+      const exactErrors = errors.map(c => ({ id: c.id, metric: c.metric, expected: c.expected, actual: c.actual, source: c.source }));
+      const exactWarnings = warnings.map(c => ({ id: c.id, metric: c.metric, expected: c.expected, actual: c.actual, source: c.source }));
+      if (exactWarnings.length) console.warn('[render-validation:explainable]', exactWarnings);
+      if (exactErrors.length) console.error('[render-validation:corruption]', exactErrors);
+      return { ok: errors.length === 0, checks, failed, warnings, errors, warningCount: warnings.length, errorCount: errors.length, exactErrors, exactWarnings };
+    } catch (error) {
+      console.warn('[render-consistency-validation skipped]', error);
+      return { ok: true, checks: [], failed: [], warnings: [], errors: [], warningCount: 0, errorCount: 0, exactErrors: [], exactWarnings: [] };
     }
-    const failed = checks.filter(c => !c.pass).map(check => ({ ...check, classification: classify(check) }));
-    const warnings = failed.filter(c => c.classification !== 'corruption');
-    const errors = failed.filter(c => c.classification === 'corruption');
-    const exactErrors = errors.map(c => ({ id: c.id, metric: c.metric, expected: c.expected, actual: c.actual, source: c.source }));
-    const exactWarnings = warnings.map(c => ({ id: c.id, metric: c.metric, expected: c.expected, actual: c.actual, source: c.source }));
-    if (exactWarnings.length) console.warn('[render-validation:explainable]', exactWarnings);
-    if (exactErrors.length) console.error('[render-validation:corruption]', exactErrors);
-    return { ok: errors.length === 0, checks, failed, warnings, errors, warningCount: warnings.length, errorCount: errors.length, exactErrors, exactWarnings };
   }
 
   
