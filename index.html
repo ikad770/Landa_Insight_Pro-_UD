@@ -796,8 +796,7 @@
       .insight-grid { display:block !important; }
       .insight-tile { height:auto !important; min-height: 132px !important; margin-bottom: 10px; }
     }
-
-    /* v1.3.0 persistent datasets, compare mode, bubble heatmap */
+    /* v1.3.0 persistent datasets and bubble heatmap */
     .stored-datasets-panel { margin-top: 14px; border:1px solid rgba(126,174,230,.16); border-radius:12px; background:linear-gradient(150deg, rgba(10,24,40,.88), rgba(7,17,29,.86)); padding:12px; box-shadow:0 14px 34px rgba(0,0,0,.22); }
     .stored-datasets-list { display:grid; gap:10px; margin-top:10px; }
     .stored-dataset-card { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:start; padding:10px; border:1px solid rgba(126,174,230,.14); background:rgba(7,18,31,.62); border-radius:10px; }
@@ -816,36 +815,6 @@
     .stored-dataset-details-row b { color:#dce8f8; font-weight:600; min-width:74px; }
     .stored-dataset-details-row span { min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .stored-dataset-empty { padding:12px; border:1px dashed rgba(126,174,230,.18); border-radius:10px; color:#a9bbd3; text-align:center; }
-    .compare-modal { position:fixed; inset:0; background:rgba(4,10,18,.72); backdrop-filter: blur(8px); display:none; align-items:center; justify-content:center; padding:20px; z-index:80; }
-    .compare-modal.open { display:flex; }
-    .compare-panel { width:min(760px, 100%); background:linear-gradient(150deg, rgba(10,24,40,.98), rgba(7,17,29,.96)); border:1px solid rgba(126,174,230,.22); border-radius:16px; box-shadow:0 24px 64px rgba(0,0,0,.42); padding:18px; }
-    .compare-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin-top:12px; }
-    .compare-slot { border:1px solid rgba(126,174,230,.16); background:rgba(7,18,31,.75); border-radius:12px; padding:12px; }
-    .compare-slot label { display:block; font-size:.76rem; color:#9fb6d4; margin-bottom:8px; }
-    .compare-slot select { width:100%; min-height:42px; border-radius:10px; background:#091828; color:#f5f8ff; border:1px solid rgba(126,174,230,.2); padding:10px 12px; }
-    .compare-foot { display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; align-items:center; margin-top:16px; }
-    .compare-summary { color:#b8cae2; font-size:.82rem; }
-    .meta-pill.compare-pill { border-color:rgba(88,184,255,.28); color:#d8ebff; background:rgba(13,44,75,.55); }
-    .kpi.compare-active { border-color:rgba(88,184,255,.22); }
-    .command-kpis .kpi-sub { margin-top:9px; color:#9dafc8; font-size:.70rem; white-space:normal; overflow:visible; text-overflow:clip; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
-    .command-kpis .kpi-sub:before, .command-kpis .kpi-sub:after { content:none !important; }
-    .kpi-sub .compare-prefix { color:#9dafc8; }
-    .kpi-sub .compare-delta { font-weight:800; }
-    .kpi-sub .compare-delta.up-good, .kpi-sub .compare-delta.down-good { color:#32d583; }
-    .kpi-sub .compare-delta.up-bad, .kpi-sub .compare-delta.down-bad { color:#ff6262; }
-    .compare-context-bar{display:none;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border:1px solid rgba(88,184,255,.35);border-radius:12px;background:linear-gradient(135deg,rgba(13,39,66,.86),rgba(8,24,42,.84));box-shadow:0 12px 28px rgba(0,0,0,.22)}
-    .compare-context-bar.active{display:flex}
-    .compare-context-meta{font-size:.8rem;color:#d8e8ff}
-    .compare-context-actions{display:flex;gap:8px;flex-wrap:wrap}
-    .compare-exec-row{display:none;grid-template-columns:repeat(6,minmax(130px,1fr));gap:9px;margin-top:2px}
-    .compare-exec-row.active{display:grid}
-    .compare-exec-card{border:1px solid rgba(122,172,235,.26);border-radius:12px;background:linear-gradient(155deg,rgba(14,30,52,.94),rgba(8,20,37,.9));padding:10px;box-shadow:0 14px 36px rgba(0,0,0,.24),inset 0 0 0 1px rgba(255,255,255,.02)}
-    .compare-exec-card.good{border-color:rgba(84,209,141,.46)} .compare-exec-card.bad{border-color:rgba(255,92,88,.44)} .compare-exec-card.neutral{border-color:rgba(120,170,230,.3)}
-    .compare-exec-title{font-size:.72rem;color:#a9bfdc;text-transform:uppercase;letter-spacing:.06em}
-    .compare-exec-delta{margin-top:6px;font-size:1rem;font-weight:800}
-    .compare-exec-card.good .compare-exec-delta{color:#54d18d}.compare-exec-card.bad .compare-exec-delta{color:#ff736e}.compare-exec-card.neutral .compare-exec-delta{color:#7ecbff}
-    .compare-exec-values{margin-top:4px;font-size:.72rem;color:#bfd2eb}
-    .compare-exec-insight{margin-top:5px;font-size:.72rem;color:#dce9ff}
     .bubble-heatmap-wrap { margin-top:6px; }
     .bubble-heatmap-table { width:100%; border-collapse:separate; border-spacing:0; table-layout:fixed; font-size:.78rem; }
     .bubble-heatmap-table th, .bubble-heatmap-table td { border-right:1px solid rgba(150,200,255,.08); border-bottom:1px solid rgba(150,200,255,.08); padding:8px 6px; text-align:center; }
@@ -865,7 +834,6 @@
     .intake-meta-strip { margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; }
     .intake-meta-pill { background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07); color:#c7d7ea; border-radius:999px; padding:4px 8px; font-size:.69rem; }
     @media (max-width: 980px) {
-      .compare-grid { grid-template-columns:1fr; }
       .stored-dataset-card { grid-template-columns:1fr; }
       .stored-dataset-actions { justify-content:flex-start; }
     }
@@ -926,7 +894,7 @@
     .drawer { z-index: 120 !important; align-items: center !important; padding: 18px !important; backdrop-filter: blur(5px); }
     .drawer-panel { width: min(1220px, calc(100vw - 56px)) !important; max-height: calc(100vh - 56px) !important; border-radius: 18px !important; background: linear-gradient(180deg, rgba(10,23,41,.98), rgba(7,17,31,.98)) !important; box-shadow: 0 30px 80px rgba(0,0,0,.56) !important; }
     .drawer-head { position: sticky; top: -14px; z-index: 3; background: rgba(9,21,37,.97); padding: 4px 0 10px; border-bottom: 1px solid rgba(126,174,230,.13); }
-    .summary-modal, .compare-modal { z-index: 130 !important; backdrop-filter: blur(7px); }
+    .summary-modal { z-index: 130 !important; backdrop-filter: blur(7px); }
     .command-toast { position:fixed; right:24px; bottom:24px; max-width:420px; padding:12px 14px; border-radius:12px; background:rgba(9,24,42,.96); border:1px solid rgba(126,174,230,.28); color:#eaf3ff; box-shadow:0 18px 46px rgba(0,0,0,.34); z-index:200; transform:translateY(20px); opacity:0; pointer-events:none; transition:.18s ease; }
     .command-toast.show { transform:translateY(0); opacity:1; }
     .command-toast[data-tone="warning"] { border-color: rgba(255,196,0,.4); }
@@ -1090,7 +1058,7 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
 
         <section class="stored-datasets-panel" id="storedDatasetsPanel">
           <div class="chart-head"><h3 style="margin:0;">Recent datasets</h3><div class="chart-tools"><span class="micro">The last 3 validated datasets are saved automatically in this browser.</span><button id="clearStoredDatasetsBtn" class="btn secondary" type="button">Clear all</button></div></div>
-          <div class="intake-meta-strip"><span class="intake-meta-pill">Auto-save: ON</span><span class="intake-meta-pill">Last 3 datasets</span><span class="intake-meta-pill">Compare-ready</span></div>
+          <div class="intake-meta-strip"><span class="intake-meta-pill">Auto-save: ON</span><span class="intake-meta-pill">Last 3 datasets</span></div>
           <div id="storedDatasetsList" class="stored-datasets-list"><div class="stored-dataset-empty">No saved datasets yet. Run analysis once to enable quick reload.</div></div>
         </section>
 
@@ -1155,8 +1123,7 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
             <span id="dataRangeIndicator" class="meta-pill">Data range: N/A</span>
             <button id="filtersBtn" class="btn secondary" type="button">▿ Filters</button>
             <button id="exportBtn" class="btn secondary">⇧ Share / Export</button>
-            <button id="compareBtn" class="btn secondary">⇆ Compare</button>
-            <button id="replaceBtn" class="btn">Load new dataset</button>
+                        <button id="replaceBtn" class="btn">Load new dataset</button>
             <button id="summaryBtn" class="btn secondary">Summary</button>
           </div>
         </header>
@@ -1171,18 +1138,9 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
           <span id="datasetMeta">Dataset not loaded</span>
           <span id="appVersionMeta">Dashboard version: InsightPro+ v1.6.0</span>
           <span id="headerDataStatus" class="meta-pill ok hidden">Data status</span>
-          <span id="compareMeta" class="meta-pill compare-pill hidden">Compare mode</span>
-          <span>Confidence: <strong class="confidence-high">HIGH</strong></span>
+                    <span>Confidence: <strong class="confidence-high">HIGH</strong></span>
         </section>
 
-        <section id="compareContextBar" class="compare-context-bar">
-          <div id="compareContextMeta" class="compare-context-meta"></div>
-          <div class="compare-context-actions">
-            <button id="changeComparisonBtn" class="btn secondary" type="button">Change comparison</button>
-            <button id="clearComparisonContextBtn" class="btn secondary" type="button">Clear comparison</button>
-          </div>
-        </section>
-        <section id="comparisonExecutiveRow" class="compare-exec-row"></section>
         <section id="kpiStrip" class="kpis command-kpis"></section>
         <section id="dashboardStatusPanel" class="dashboard-status hidden"></section>
 
@@ -1263,35 +1221,6 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
   </section>
 </div>
 
-
-<div id="compareModal" class="compare-modal">
-  <section class="compare-panel">
-    <div class="chart-head">
-      <h3 style="margin:0;">Compare Datasets</h3>
-      <button id="closeCompareBtn" class="btn" type="button">Close</button>
-    </div>
-    <p class="micro">Select the current reporting snapshot and the comparison baseline. The dashboard will stay on the current period and show KPI deltas against the selected baseline.</p>
-    <div class="compare-grid">
-      <div class="compare-slot">
-        <label for="compareCurrentSelect">Current / primary dataset</label>
-        <select id="compareCurrentSelect"></select>
-        <div id="compareCurrentMeta" class="micro" style="margin-top:8px;"></div>
-      </div>
-      <div class="compare-slot">
-        <label for="compareBaselineSelect">Compare against</label>
-        <select id="compareBaselineSelect"></select>
-        <div id="compareBaselineMeta" class="micro" style="margin-top:8px;"></div>
-      </div>
-    </div>
-    <div class="compare-foot">
-      <div id="compareSummaryText" class="compare-summary">Choose two saved datasets to compare KPI changes across the command center.</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button id="clearCompareBtn" class="btn secondary" type="button">Clear compare</button>
-        <button id="applyCompareBtn" class="btn primary" type="button">Apply compare</button>
-      </div>
-    </div>
-  </section>
-</div>
 
 <div id="summaryModal" class="summary-modal">
   <section class="summary-panel">
@@ -1408,7 +1337,6 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     renderQueued: false,
     storedDatasets: [],
     activeSnapshotId: null,
-    compare: { modalOpen: false, active: false, currentDatasetId: null, baselineDatasetId: null, appliedCurrentDatasetId: null, appliedBaselineDatasetId: null, currentSnapshot: null, baselineSnapshot: null, metrics: null, warnings: [] },
   };
 
   const APP_VERSION = 'InsightPro+ v1.6.0';
@@ -1428,11 +1356,8 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
   };
   const COLORS = [SEMANTIC_COLORS.critical, SEMANTIC_COLORS.elevated, SEMANTIC_COLORS.normal, SEMANTIC_COLORS.low, SEMANTIC_COLORS.neutral];
   const DEBUG = false;
-  const EPSILON = 0.01; // tolerance in percent/ratio validation to suppress floating-point noise
-  const roundForCompare = v => Number(Number(v || 0).toFixed(2));
-  const numericDiff = (lhs, rhs) => Math.abs(Number(lhs || 0) - Number(rhs || 0));
-  const hasSignificantDiff = (lhs, rhs, epsilon = EPSILON) => numericDiff(roundForCompare(lhs), roundForCompare(rhs)) > epsilon;
 
+  // TODO: Compare feature removed temporarily. Rebuild later as isolated module.
   const DATASET_DB_NAME = 'landa-insightpro-datasets';
   const DATASET_DB_VERSION = 1;
   const DATASET_STORE = 'datasets';
@@ -1665,7 +1590,6 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
       if (latestBtn) { latestBtn.disabled = !datasets.length; latestBtn.title = datasets.length ? 'Load newest saved snapshot' : 'No saved dataset yet'; }
       if (!datasets.length) {
         host.innerHTML = '<div class="stored-dataset-empty">No saved datasets yet. Run analysis once to enable quick reload.</div>';
-        loadCompareCandidates().then(() => renderCompareOptions()).catch(() => {});
         return;
       }
       host.innerHTML = datasets.map((entry, index) => `
@@ -1694,8 +1618,7 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
           </div>
           <div class="stored-dataset-actions">
             <button class="btn secondary" type="button" data-load-snapshot="${esc(entry.id)}">Load</button>
-            <button class="btn secondary" type="button" data-compare-snapshot="${esc(entry.id)}">Compare</button>
-            <button class="btn secondary" type="button" data-delete-snapshot="${esc(entry.id)}">Delete</button>
+                        <button class="btn secondary" type="button" data-delete-snapshot="${esc(entry.id)}">Delete</button>
           </div>
         </article>`).join('');
       host.querySelectorAll('[data-toggle-details]').forEach(btn => btn.addEventListener('click', () => {
@@ -1708,14 +1631,8 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
         const snapshot = await getStoredDatasetById(btn.dataset.loadSnapshot);
         if (!snapshot) return;
     if (!hasValidSnapshotPayload(snapshot)) { setStatus('Saved dataset is invalid/corrupted. Please re-upload files.', 'error'); return; }
-        clearCompareState(false);
         restoreDatasetSnapshot(snapshot);
         setStatus(`Loaded saved dataset: ${formatSnapshotLabel(snapshot)}.`, 'ok');
-      }));
-      host.querySelectorAll('[data-compare-snapshot]').forEach(btn => btn.addEventListener('click', async () => {
-        const snapshot = await getStoredDatasetById(btn.dataset.compareSnapshot);
-        if (!snapshot) return;
-        openCompareModal(snapshot.id);
       }));
       host.querySelectorAll('[data-delete-snapshot]').forEach(btn => btn.addEventListener('click', async () => {
         if (!confirm('Delete this saved dataset snapshot?')) return;
@@ -1723,7 +1640,6 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
         await refreshStoredDatasetUI();
         setStatus('Saved dataset deleted.', 'ok');
       }));
-      loadCompareCandidates().then(() => renderCompareOptions()).catch(() => {});
     } catch (error) {
       host.innerHTML = `<div class="stored-dataset-empty">Saved datasets are unavailable: ${esc(error.message || 'storage error')}</div>`;
     }
@@ -1745,7 +1661,7 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     STATE.validation = { errors: true, availability: true, availabilityDetails: true, volume: true };
     STATE.snapshotSourceMeta = snapshot;
   }
-  function restoreDatasetSnapshot(snapshot, { preserveCompare = true } = {}) {
+  function restoreDatasetSnapshot(snapshot) {
     if (!snapshot) return;
     hydrateStateFromSnapshotPayload(snapshot);
     STATE.activeSnapshotId = snapshot.id;
@@ -1756,18 +1672,7 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     if (datasetMeta) datasetMeta.textContent = `${formatSnapshotLabel(snapshot)} • ${Number(snapshot.counts?.events || STATE.merged.events.length || 0).toLocaleString()} merged events • ${snapshot.mode || STATE.mode}`;
     document.getElementById('intakeScreen').classList.add('hidden');
     document.getElementById('dashboardScreen').classList.remove('hidden');
-    if (!preserveCompare) clearCompareState(false);
     renderDashboard();
-  }
-  function clearCompareState(reRender = true) {
-    STATE.compare = { ...STATE.compare, active: false, baselineSnapshot: null, currentSnapshot: null, appliedCurrentDatasetId: null, appliedBaselineDatasetId: null, metrics: null, warnings: [] };
-    const meta = document.getElementById('compareMeta');
-    if (meta) { meta.classList.add('hidden'); meta.textContent = 'Compare mode'; }
-    const modalError = document.getElementById('compareSummaryText');
-    if (modalError) modalError.textContent = 'Choose two saved datasets to compare KPI changes across the command center.';
-    updateComparisonContextUI();
-    console.info('[compare] Comparison cleared');
-    if (reRender && STATE.merged?.events?.length) renderDashboard();
   }
   async function repairStoredDatasetIdentities() {
     const fromDb = await getStoredDatasetsDetailed().catch(() => []);
@@ -1786,7 +1691,7 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
       }
       return entry;
     });
-    if (duplicateIds.size) console.warn('[compare] Duplicate dataset ids detected:', [...duplicateIds]);
+    if (duplicateIds.size) console.warn('[dataset] Duplicate dataset ids detected:', [...duplicateIds]);
     if (repaired) {
       await withDatasetStore('readwrite', (store) => new Promise((resolve, reject) => {
         const clearReq = store.clear();
@@ -1799,236 +1704,6 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     }
     STATE.storedDatasets = repaired ? await getStoredDatasetsDetailed().catch(() => repairedItems) : fromDb;
     return { items: STATE.storedDatasets, repaired };
-  }
-  async function loadCompareCandidates() {
-    const repairResult = await repairStoredDatasetIdentities();
-    if (repairResult?.repaired) setStatus('Saved dataset identities were repaired. If comparison still looks wrong, clear recent datasets and reload the files.', 'warning');
-    STATE.storedDatasets = repairResult?.items || [];
-    return STATE.storedDatasets;
-  }
-  async function renderCompareOptions(preferredBaselineId = null) {
-    const currentSel = document.getElementById('compareCurrentSelect');
-    const baselineSel = document.getElementById('compareBaselineSelect');
-    if (!currentSel || !baselineSel) return;
-    const items = STATE.storedDatasets || [];
-    const options = items.map(entry => `<option value="${esc(entry.id)}">${esc(formatSnapshotLabel(entry))} • ${esc(formatSnapshotMeta(entry))}</option>`).join('');
-    currentSel.innerHTML = options || '<option value="">No saved datasets</option>';
-    baselineSel.innerHTML = options || '<option value="">No saved datasets</option>';
-    const activeExists = !!items.find(x => x.id === STATE.activeSnapshotId);
-    const currentId = (activeExists ? STATE.activeSnapshotId : items[0]?.id) || '';
-    currentSel.value = currentId;
-    const preferred = preferredBaselineId && preferredBaselineId !== currentId && items.find(x => x.id === preferredBaselineId) ? preferredBaselineId : null;
-    const baselineId = preferred || items.find(x => x.id !== currentId)?.id || '';
-    baselineSel.value = baselineId;
-    STATE.compare.currentDatasetId = currentSel.value || null;
-    STATE.compare.baselineDatasetId = baselineSel.value || null;
-    updateCompareSelectionState();
-  }
-  function updateCompareSelectionState() {
-    const items = STATE.storedDatasets || [];
-    const currentSel = document.getElementById('compareCurrentSelect');
-    const baselineSel = document.getElementById('compareBaselineSelect');
-    const currentMeta = document.getElementById('compareCurrentMeta');
-    const baselineMeta = document.getElementById('compareBaselineMeta');
-    const summary = document.getElementById('compareSummaryText');
-    const current = items.find(x => x.id === currentSel?.value) || null;
-    const baseline = items.find(x => x.id === baselineSel?.value) || null;
-    if (currentMeta) currentMeta.textContent = current ? formatSnapshotMeta(current) : 'No current dataset selected.';
-    if (baselineMeta) baselineMeta.textContent = baseline ? formatSnapshotMeta(baseline) : 'No baseline selected.';
-    const sameDataset = !!(current?.id && baseline?.id && current.id === baseline.id);
-    let reason = '';
-    if (!currentSel?.value) reason = 'Missing current dataset';
-    else if (!baselineSel?.value) reason = 'Missing baseline dataset';
-    else if (sameDataset) reason = 'Same dataset selected';
-    else if (!current || !baseline) reason = 'Snapshot not found';
-    else if (!current?.payload?.kpis || !baseline?.payload?.kpis) reason = 'Metrics unavailable';
-    console.info('[compare-select]', { currentId: currentSel?.value || null, currentLabel: current ? formatSnapshotLabel(current) : null, baselineId: baselineSel?.value || null, baselineLabel: baseline ? formatSnapshotLabel(baseline) : null, sameDataset });
-    const applyEnabled = !reason;
-    const debugLine = `debug • currentId=${currentSel?.value || 'n/a'} • baselineId=${baselineSel?.value || 'n/a'} • sameDataset=${sameDataset} • applyEnabled=${applyEnabled} • disabledReason=${reason || 'none'}`;
-    if (summary) summary.textContent = reason
-      ? `Apply compare blocked: ${reason}. ${debugLine}`
-      : `Comparing ${formatSnapshotLabel(current)} against ${formatSnapshotLabel(baseline)}. ${debugLine}`;
-    const applyBtn = document.getElementById('applyCompareBtn');
-    if (applyBtn) applyBtn.disabled = !applyEnabled;
-  }
-  async function openCompareModal(preferredBaselineId = null) {
-    const items = await loadCompareCandidates();
-    if ((items || []).length < 2) { setStatus('Compare needs at least 2 saved datasets.', 'warning'); return; }
-    await renderCompareOptions(preferredBaselineId);
-    const modal = document.getElementById('compareModal');
-    if (modal) {
-      modal.classList.add('open');
-      document.body.classList.add('modal-open');
-      STATE.compare.modalOpen = true;
-      console.info('[compare] Compare modal opened');
-      if (preferredBaselineId) console.info('[compare] Baseline preselected', preferredBaselineId);
-    }
-  }
-  function closeCompareModal() {
-    const modal = document.getElementById('compareModal');
-    if (modal) {
-      modal.classList.remove('open');
-      modal.classList.remove('show');
-      modal.style.pointerEvents = '';
-      document.body.classList.remove('modal-open');
-      STATE.compare.modalOpen = false;
-      console.info('[compare] Modal closed');
-    }
-  }
-  function clearCompare() {
-    clearCompareState();
-    closeCompareModal();
-    setStatus('Comparison cleared.', 'info');
-  }
-  function computeCompareMetrics(currentSnapshot, baselineSnapshot) {
-    return computeComparisonMetrics(currentSnapshot, baselineSnapshot);
-  }
-  function renderCompareContextBar() {
-    updateComparisonContextUI();
-  }
-  function renderCompareSummaryRow() {
-    renderComparisonExecutiveRow();
-  }
-  async function applyCompare() {
-    console.info('[compare] Apply clicked');
-    const currentId = document.getElementById('compareCurrentSelect')?.value;
-    const baselineId = document.getElementById('compareBaselineSelect')?.value;
-    if (!currentId) { setStatus('Missing current dataset', 'warning'); updateCompareSelectionState(); return; }
-    if (!baselineId) { setStatus('Missing baseline dataset', 'warning'); updateCompareSelectionState(); return; }
-    if (currentId === baselineId) { setStatus('Same dataset selected', 'warning'); updateCompareSelectionState(); return; }
-    const currentSnapshot = await getStoredDatasetById(currentId);
-    const baselineSnapshot = await getStoredDatasetById(baselineId);
-    if (!currentSnapshot || !baselineSnapshot) { setStatus('Snapshot not found', 'error'); updateCompareSelectionState(); return; }
-    if (!hasValidSnapshotPayload(currentSnapshot) || !hasValidSnapshotPayload(baselineSnapshot)) { setStatus('Metrics unavailable', 'error'); updateCompareSelectionState(); return; }
-    const metrics = computeCompareMetrics(currentSnapshot, baselineSnapshot);
-    if (!metrics || !Object.values(metrics).some(m => m?.available)) { setStatus('Metrics unavailable', 'error'); updateCompareSelectionState(); return; }
-    const compareValidation = validateComparisonCompatibility(currentSnapshot, baselineSnapshot);
-    if (!compareValidation.compatible) { console.warn('[compare] Validation failed', compareValidation); setStatus(`Comparison blocked: ${compareValidation.blockers.join(' · ')}`, 'error'); return; }
-    const shouldRestoreCurrent = STATE.activeSnapshotId !== currentId;
-    if (shouldRestoreCurrent) restoreDatasetSnapshot(currentSnapshot, { preserveCompare: true });
-    STATE.compare = { ...STATE.compare, active: true, currentDatasetId: currentId, baselineDatasetId: baselineId, appliedCurrentDatasetId: currentId, appliedBaselineDatasetId: baselineId, baselineSnapshot, currentSnapshot, validation: compareValidation, warnings: compareValidation.warnings || [], metrics };
-    const meta = document.getElementById('compareMeta');
-    if (meta) { meta.classList.remove('hidden'); meta.textContent = `Compare: ${formatSnapshotLabel(currentSnapshot)} vs ${formatSnapshotLabel(baselineSnapshot)}`; }
-    closeCompareModal();
-    renderCompareContextBar();
-    renderDashboard();
-    renderCompareSummaryRow();
-    setStatus(`Compare mode active: ${formatSnapshotLabel(currentSnapshot)} vs ${formatSnapshotLabel(baselineSnapshot)}.`, 'ok');
-  }
-  function computeComparisonMetrics(currentSnapshot, baselineSnapshot) {
-    const mapMetric = (key, currentValue, baselineValue, betterWhenHigher, { percentPoint = false } = {}) => {
-      const curr = Number(currentValue);
-      const base = Number(baselineValue);
-      if (!Number.isFinite(curr) || !Number.isFinite(base)) return { key, available: false, currentValue: null, baselineValue: null, deltaAbsolute: null, deltaPercent: null, status: 'neutral', percentPoint };
-      const deltaAbsolute = curr - base;
-      const deltaPercent = base === 0 ? null : ((curr - base) / Math.abs(base)) * 100;
-      const status = Math.abs(deltaAbsolute) < EPSILON ? 'neutral' : (betterWhenHigher ? (deltaAbsolute > 0 ? 'improved' : 'worsened') : (deltaAbsolute < 0 ? 'improved' : 'worsened'));
-      return { key, available: true, currentValue: curr, baselineValue: base, deltaAbsolute, deltaPercent, status, percentPoint };
-    };
-    const currentKpis = currentSnapshot?.payload?.kpis || {};
-    const baselineKpis = baselineSnapshot?.payload?.kpis || {};
-    return {
-      downtime: mapMetric('downtime', currentKpis.totalDowntimePct, baselineKpis.totalDowntimePct, false),
-      mttr: mapMetric('mttr', currentKpis.mttr, baselineKpis.mttr, false),
-      mtbf: mapMetric('mtbf', currentKpis.mtbf, baselineKpis.mtbf, true),
-      volume: mapMetric('volume', currentKpis.totalPrintedFlats, baselineKpis.totalPrintedFlats, true),
-      wasteRatio: mapMetric('wasteRatio', (currentKpis.wasteRatioFlats ?? currentKpis.wasteRatio) * 100, (baselineKpis.wasteRatioFlats ?? baselineKpis.wasteRatio) * 100, false, { percentPoint: true }),
-      availability: mapMetric('availability', currentKpis.availabilityPercent, baselineKpis.availabilityPercent, true, { percentPoint: true }),
-      criticalAlerts: mapMetric('criticalAlerts', currentKpis.totalEvents, baselineKpis.totalEvents, false),
-    };
-  }
-  function validateComparisonCompatibility(currentSnapshot, baselineSnapshot) {
-    const blockers = [];
-    const warnings = [];
-    const requiredSources = ['errors', 'availability', 'volume'];
-    const currentSources = requiredSources.filter(k => !!currentSnapshot?.files?.[k]);
-    const baselineSources = requiredSources.filter(k => !!baselineSnapshot?.files?.[k]);
-    if (!currentSources.length || !baselineSources.length) blockers.push('Missing required source metadata');
-    const missingInBaseline = currentSources.filter(k => !baselineSources.includes(k));
-    if (missingInBaseline.length) warnings.push(`Baseline missing source(s): ${missingInBaseline.join(', ')}`);
-    ['totalEvents', 'totalDowntimePct', 'mttr', 'availabilityPercent'].forEach(key => {
-      if (baselineSnapshot?.payload?.kpis?.[key] == null) warnings.push(`Baseline KPI missing: ${key}`);
-    });
-    return { compatible: blockers.length === 0, blockers, warnings, sources: { current: currentSources, baseline: baselineSources } };
-  }
-  function updateComparisonContextUI() {
-    const bar = document.getElementById('compareContextBar');
-    const meta = document.getElementById('compareContextMeta');
-    if (!bar || !meta) return;
-    if (!STATE.compare?.active || !STATE.compare?.baselineSnapshot) { bar.classList.remove('active'); meta.textContent = ''; return; }
-    bar.classList.add('active');
-    meta.textContent = `Compared to: ${STATE.compare.baselineSnapshot?.startDate || 'n/a'} → ${STATE.compare.baselineSnapshot?.endDate || 'n/a'}`;
-  }
-  function initCompareFeature() {
-    if (STATE.compare?.initialized) return;
-    STATE.compare = { ...STATE.compare, initialized: true };
-    const compareBtn = document.getElementById('compareBtn');
-    const compareModal = document.getElementById('compareModal');
-    const closeCompareBtn = document.getElementById('closeCompareBtn');
-    const applyCompareBtn = document.getElementById('applyCompareBtn');
-    const clearCompareBtn = document.getElementById('clearCompareBtn');
-    const clearComparisonContextBtn = document.getElementById('clearComparisonContextBtn');
-    const changeComparisonBtn = document.getElementById('changeComparisonBtn');
-    const compareCurrentSelect = document.getElementById('compareCurrentSelect');
-    const compareBaselineSelect = document.getElementById('compareBaselineSelect');
-    compareBtn?.addEventListener('click', () => openCompareModal());
-    closeCompareBtn?.addEventListener('click', closeCompareModal);
-    applyCompareBtn?.addEventListener('click', applyCompare);
-    clearCompareBtn?.addEventListener('click', clearCompare);
-    clearComparisonContextBtn?.addEventListener('click', clearCompare);
-    changeComparisonBtn?.addEventListener('click', () => openCompareModal());
-    compareCurrentSelect?.addEventListener('change', () => { STATE.compare.currentDatasetId = compareCurrentSelect.value || null; updateCompareSelectionState(); });
-    compareBaselineSelect?.addEventListener('change', () => { STATE.compare.baselineDatasetId = compareBaselineSelect.value || null; updateCompareSelectionState(); });
-    compareModal?.addEventListener('click', e => { if (e.target === compareModal) closeCompareModal(); });
-    document.addEventListener('keydown', e => {
-      if (e.key === 'Escape' && document.getElementById('compareModal')?.classList.contains('open')) closeCompareModal();
-    });
-  }
-  function getKpiCompareConfig(metricKey) {
-    return {
-      events: { current: Number(STATE.kpis?.totalEvents || 0), baseline: Number(STATE.compare.baselineSnapshot?.payload?.kpis?.totalEvents || 0), digits: 1, betterWhenHigher: false },
-      downtime: { current: Number(STATE.kpis?.totalDowntimePct || 0), baseline: Number(STATE.compare.baselineSnapshot?.payload?.kpis?.totalDowntimePct || 0), digits: 1, betterWhenHigher: false },
-      mttr: { current: Number(STATE.kpis?.mttr || 0), baseline: Number(STATE.compare.baselineSnapshot?.payload?.kpis?.mttr || 0), digits: 1, betterWhenHigher: false },
-      mtbf: { current: Number(STATE.kpis?.mtbf || 0), baseline: Number(STATE.compare.baselineSnapshot?.payload?.kpis?.mtbf || 0), digits: 1, betterWhenHigher: true },
-      volume: { current: Number(STATE.kpis?.totalPrintedFlats || 0), baseline: Number(STATE.compare.baselineSnapshot?.payload?.kpis?.totalPrintedFlats || 0), digits: 1, betterWhenHigher: true },
-      wasteRatio: { current: Number((STATE.kpis?.wasteRatioFlats ?? STATE.kpis?.wasteRatio) || 0) * 100, baseline: Number((STATE.compare.baselineSnapshot?.payload?.kpis?.wasteRatioFlats ?? STATE.compare.baselineSnapshot?.payload?.kpis?.wasteRatio) || 0) * 100, digits: 1, betterWhenHigher: false },
-      availability: { current: Number(STATE.kpis?.availabilityPercent || 0), baseline: Number(STATE.compare.baselineSnapshot?.payload?.kpis?.availabilityPercent || 0), digits: 1, betterWhenHigher: true },
-    }[metricKey] || null;
-  }
-  function buildCompareDelta(metricKey) {
-    if (!STATE.compare?.active || !STATE.compare?.baselineSnapshot) return null;
-    const cfg = getKpiCompareConfig(metricKey);
-    if (!cfg) return null;
-    const baseline = Number(cfg.baseline || 0);
-    const current = Number(cfg.current || 0);
-    const delta = current - baseline;
-    const pct = baseline === 0 ? null : (delta / baseline) * 100;
-    let tone = 'up-good';
-    const increased = delta >= 0;
-    if (cfg.betterWhenHigher) tone = increased ? 'up-good' : 'down-bad';
-    else tone = increased ? 'up-bad' : 'down-good';
-    return {
-      prefix: `vs ${formatSnapshotLabel(STATE.compare.baselineSnapshot)}`,
-      deltaText: pct == null ? 'n/a' : `${delta >= 0 ? '↑' : '↓'} ${Math.abs(pct).toFixed(cfg.digits)}%`,
-      tone, delta, current, baseline, pct
-    };
-  }
-  function renderComparisonExecutiveRow() {
-    const host = document.getElementById('comparisonExecutiveRow');
-    if (!host) return;
-    if (!STATE.compare?.active || !STATE.compare?.baselineSnapshot) { host.classList.remove('active'); host.innerHTML = ''; return; }
-    const defs = [
-      ['Downtime','downtime',false],['MTTR','mttr',false],['MTBF','mtbf',true],['Volume','volume',true],['Waste Ratio','wasteRatio',false],['Availability','availability',true]
-    ];
-    host.innerHTML = defs.map(([label,key,higherBetter]) => {
-      const d = buildCompareDelta(key);
-      if (!d) return '';
-      const state = d.delta === 0 ? 'neutral' : ((higherBetter && d.delta > 0) || (!higherBetter && d.delta < 0) ? 'good' : 'bad');
-      const pp = key === 'availability' || key === 'wasteRatio';
-      const deltaText = d.pct == null ? 'n/a' : `${d.delta >= 0 ? '+' : ''}${Math.abs(pp ? d.delta : d.pct).toFixed(2)} ${pp ? 'pp' : '%'}`;
-      return `<article class="compare-exec-card ${state}"><div class="compare-exec-title">${esc(label)}</div><div class="compare-exec-delta">${esc(deltaText)}</div><div class="compare-exec-values">Prev ${esc(String(d.baseline.toFixed(2)))} • Curr ${esc(String(d.current.toFixed(2)))}</div><div class="compare-exec-insight">${esc(state==='good'?'Improved':state==='bad'?'Deteriorated':'Stable')}</div></article>`;
-    }).join('');
-    host.classList.add('active');
   }
   const VOLUME_BASIS = {
     code: 'B',
@@ -3648,7 +3323,6 @@ function extractPressCodeFromAvailabilityId(rawId) {
       STATE.drilldown.simulation.appliedExcluded = new Set(state.simExclusions);
     }
     syncMetricToggleUI();
-    initCompareFeature();
 
     refreshStoredDatasetUI();
 
@@ -4955,8 +4629,7 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     const topSubsystem = summary?.pressTopSubsystem?.name || summary?.topSubsystem?.name || 'the bottleneck subsystem';
     const downtime = formatDuration((STATE.kpis?.totalPlanned || 0) + (STATE.kpis?.totalUnplanned || 0));
     const share = Number(summary?.topPressDowntimeShare || summary?.globalDriverShare || 0).toFixed(1);
-    const compareNote = STATE.compare?.active && STATE.compare?.baselineSnapshot ? ' Compared with <strong>' + esc(formatSnapshotLabel(STATE.compare.baselineSnapshot)) + '</strong>, KPI cards highlight period deltas.' : '';
-    primary.innerHTML = 'Downtime is driven mainly by <strong>' + esc(topPress) + '</strong> (' + share + '% of total downtime). <strong>' + esc(topSubsystem) + '</strong> and recurring <strong>' + esc(topError) + '</strong> events are the current operational focus.' + compareNote;
+    primary.innerHTML = 'Downtime is driven mainly by <strong>' + esc(topPress) + '</strong> (' + share + '% of total downtime). <strong>' + esc(topSubsystem) + '</strong> and recurring <strong>' + esc(topError) + '</strong> events are the current operational focus.';
     action.innerHTML = 'Recommended first move: investigate <strong>' + esc(topError) + '</strong> on <strong>' + esc(topPress) + '</strong>, then validate ' + esc(topSubsystem) + ' recovery actions. Current aggregate downtime context: <strong>' + esc(downtime) + '</strong>.';
   }
   function renderKpis(k) {
@@ -4986,11 +4659,8 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
       availability: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/><path d="M9 19h6"/></svg>'
     }[metricKey] || '');
     const toCard = ([label, metricKey, value, tone, icon]) => {
-      const compare = buildCompareDelta(metricKey);
-      const sub = compare
-        ? `<div class="kpi-sub"><span class="compare-prefix">${esc(compare.prefix)}</span><span class="compare-delta ${esc(compare.tone)}">${esc(compare.deltaText)}</span></div>`
-        : `<div class="kpi-sub"><span class="compare-prefix">${esc(subtitles[metricKey] || '')}</span></div>`;
-      return `<article class="kpi clickable ${compare ? 'compare-active' : ''}" role="button" tabindex="0" data-icon="${esc(icon)}" data-delta-tone="${esc(compare?.tone || tone)}" data-kpi-metric="${metricKey}" title="${esc(subtitles[metricKey] || label)}"><div class="kpi-icon" aria-hidden="true">${kpiIconSvg(metricKey)}</div><div class="k">${esc(label)}</div><div class="v">${esc(value)}</div>${sub}</article>`;
+      const sub = `<div class="kpi-sub"><span class="kpi-prefix">${esc(subtitles[metricKey] || '')}</span></div>`;
+      return `<article class="kpi clickable" role="button" tabindex="0" data-icon="${esc(icon)}" data-delta-tone="${esc(tone)}" data-kpi-metric="${metricKey}" title="${esc(subtitles[metricKey] || label)}"><div class="kpi-icon" aria-hidden="true">${kpiIconSvg(metricKey)}</div><div class="k">${esc(label)}</div><div class="v">${esc(value)}</div>${sub}</article>`;
     };
     document.getElementById('kpiStrip').innerHTML = cards.map(toCard).join('');
   }
@@ -8997,7 +8667,6 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
 
   function closeAllOverlays(reason = '') {
     try { document.getElementById('summaryModal')?.classList.remove('show'); } catch (_) {}
-    try { document.getElementById('compareModal')?.classList.remove('open'); } catch (_) {}
     try {
       const drawer = document.getElementById('drilldownDrawer');
       if (drawer?.classList.contains('show') && typeof forceCloseDrilldown === 'function') forceCloseDrilldown(reason || 'close-all');
@@ -9115,7 +8784,6 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       const latest = datasets[0];
       if (!latest) { setStatus('No saved dataset yet. Upload files and run analysis first.', 'info'); return; }
       if (!hasValidSnapshotPayload(latest)) { setStatus('Latest saved dataset is invalid/corrupted. Please re-upload files.', 'error'); return; }
-      clearCompareState(false);
       restoreDatasetSnapshot(latest);
       setStatus(`Loaded saved dataset: ${formatSnapshotLabel(latest)}.`, 'ok');
     });
@@ -9132,7 +8800,6 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       STATE.analysisRunId += 1;
       document.getElementById('dashboardScreen').classList.add('hidden');
       document.getElementById('intakeScreen').classList.remove('hidden');
-      clearCompareState(false);
       setStatus('Load new files and run analysis.', 'info');
       setProcessingState({ stage: 'reading', status: 'idle', percent: 0, detail: 'Existing files are loaded. Run analysis or upload replacements.' });
     });
@@ -9377,7 +9044,6 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
         if (document.getElementById('chartExpandModal')?.classList.contains('show')) closeExpandedChart();
         else if (document.getElementById('drilldownDrawer')?.classList.contains('show')) forceCloseDrilldown('escape');
         else if (document.getElementById('summaryModal')?.classList.contains('show')) document.getElementById('summaryModal')?.classList.remove('show');
-        else if (document.getElementById('compareModal')?.classList.contains('open')) closeCompareModal();
       }
     });
     drilldownSearch.addEventListener('input', e => { STATE.drilldown.search = e.target.value || ''; renderDrilldown(); });
