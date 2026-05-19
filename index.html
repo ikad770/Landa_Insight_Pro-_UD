@@ -4518,7 +4518,6 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
   function renderCommandCenterExtras(sourceScope = {}, kpis = {}, summary = {}) {
     try {
       document.body.classList.add('command-theme');
-      const topPress = summary?.focusPress || summary?.topPressByDowntime?.name || summary?.topPressByEvents?.name || 'Top press';
       const wastePct = metricRegistry.wasteRatio.format(kpis.wasteRatioFlats ?? kpis.wasteRatio ?? 0);
       const availPct = metricRegistry.availability.format((kpis.availabilityPercent == null ? null : kpis.availabilityPercent / 100));
       const impactModel = buildFullImpactModel(sourceScope || {});
@@ -4528,14 +4527,16 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
           || (Number(b?.avgDurationSeconds || 0) - Number(a?.avgDurationSeconds || 0))
           || (Number(b?.totalEvents || 0) - Number(a?.totalEvents || 0)));
       const bannerContext = buildCriticalBannerContext(criticalRows, sourceScope?.errorsAgg || [], kpis, summary);
+      STATE.criticalBannerContext = bannerContext;
       const alertText = document.getElementById('criticalAlertText');
       if (alertText) {
-        if (criticalRows.length) {
-          const pressText = formatPressListForBanner(bannerContext.criticalPressIds);
-          alertText.innerHTML = `CRITICAL: ${esc(pressText)} ${bannerContext.criticalPressIds.length === 1 ? 'shows' : 'show'} severe long-duration failures • Critical downtime: ${esc(formatClockDuration(bannerContext.criticalTotalDurationSeconds || 0))} • Critical bottleneck: ${esc(bannerContext.criticalBottleneckSubsystem || 'N/A')} • Overall Waste ${esc(wastePct)} • Overall Availability ${esc(availPct)}`;
+        if (bannerContext.machineDetails.length) {
+          const machinesLine = bannerContext.machineDetails
+            .map(machine => `${machine.id}: ${Number(machine.events || 0).toLocaleString()} events, ${formatClockDuration(machine.downtimeSeconds || 0)} downtime, ${machine.bottleneck ? `bottleneck ${machine.bottleneck}` : 'bottleneck unavailable'}`)
+            .join(' • ');
+          alertText.innerHTML = `CRITICAL: ${esc(machinesLine)} • Overall Waste ${esc(wastePct)} • Overall Availability ${esc(availPct)}`;
         } else {
-          const fallbackBottleneck = summary?.pressTopSubsystem?.name || summary?.topSubsystem?.name || 'QCS';
-          alertText.innerHTML = `NO CRITICAL PRESS: No press is currently in the Critical zone • Biggest downtime driver: ${esc(shortPressIdFromLabel(topPress) || topPress)} • Overall Waste ${esc(wastePct)} • Overall Availability ${esc(availPct)} • Bottleneck: ${esc(fallbackBottleneck)}`;
+          alertText.innerHTML = `NO CRITICAL PRESS: No press is currently in the Critical zone • Overall Waste ${esc(wastePct)} • Overall Availability ${esc(availPct)}`;
         }
         alertText.title = alertText.textContent || '';
       }
@@ -4558,48 +4559,47 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
 
   function buildCriticalBannerContext(criticalPresses = [], errorRows = [], globalKpis = {}, summary = {}) {
     const topCriticalRows = (criticalPresses || []).slice(0, 2);
-    const criticalPressNames = topCriticalRows.map(row => row?.name).filter(Boolean);
-    const criticalPressIds = topCriticalRows.map(row => shortPressIdFromLabel(row?.name) || row?.name).filter(Boolean);
-    const criticalNameSet = new Set(criticalPressNames);
-    const scopedRows = (errorRows || []).filter(row => criticalNameSet.has(row?.name));
-    const subsystemMap = new Map();
-    const errorMap = new Map();
-    let criticalTotalDurationSeconds = 0;
-    let criticalTotalEvents = 0;
-    scopedRows.forEach(row => {
-      const duration = Number(row?.downtime || row?.totalDurationSeconds || 0);
-      const events = Number(row?.events || row?.totalEvents || 0);
-      criticalTotalDurationSeconds += duration;
-      criticalTotalEvents += events;
-      const subsystem = row?.topSubsystem || row?.subsystem || '';
-      const dominantError = row?.topError || row?.dominantError || row?.name || '';
-      if (subsystem) subsystemMap.set(subsystem, (subsystemMap.get(subsystem) || 0) + duration);
-      if (dominantError) errorMap.set(dominantError, (errorMap.get(dominantError) || 0) + events);
+    const machineDetails = topCriticalRows.map(row => {
+      const pressName = row?.name || '';
+      const pressId = shortPressIdFromLabel(pressName) || pressName || 'Unknown';
+      const scopedRows = (errorRows || []).filter(er => er?.name === pressName);
+      const subsystemMap = new Map();
+      const errorMap = new Map();
+      scopedRows.forEach(er => {
+        const duration = Number(er?.downtime || er?.totalDurationSeconds || 0);
+        const events = Number(er?.events || er?.totalEvents || 0);
+        const subsystem = er?.topSubsystem || er?.subsystem || '';
+        const dominantError = er?.topError || er?.dominantError || er?.errorState || er?.alert || '';
+        if (subsystem) subsystemMap.set(subsystem, (subsystemMap.get(subsystem) || 0) + duration);
+        if (dominantError) errorMap.set(dominantError, (errorMap.get(dominantError) || 0) + events);
+      });
+      return {
+        name: pressName,
+        id: pressId,
+        events: Number(row?.totalEvents || 0),
+        downtimeSeconds: Number(row?.totalDurationSeconds || 0),
+        avgDurationSeconds: Number(row?.avgDurationSeconds || 0),
+        bottleneck: [...subsystemMap.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || '',
+        dominantError: [...errorMap.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || '',
+        zoneKey: row?.zoneKey || ''
+      };
     });
-    const criticalBottleneckSubsystem = [...subsystemMap.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || '';
-    const criticalDominantError = [...errorMap.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || '';
-    const validation = {
-      bannerPresses: criticalPressIds,
-      allBannerPressesAreCritical: criticalPressNames.every(name => (criticalPresses || []).some(row => row?.name === name && row?.zoneKey === 'critical')),
-      scopedBottleneck: criticalBottleneckSubsystem || null,
-      scopedDuration: criticalTotalDurationSeconds,
-      usesGlobalWasteAvailability: true
-    };
-    validation.validationPassed = validation.allBannerPressesAreCritical;
-    console.info('[critical-banner-validation]', validation);
-    if (!validation.validationPassed) {
-      console.warn('[critical-banner-mismatch]', { validation, criticalPressNames, scopedRowCount: scopedRows.length, summaryTopSubsystem: summary?.topSubsystem?.name || null });
+    const bannerPresses = machineDetails.map(m => m.id);
+    const allInCriticalZone = machineDetails.every(m => m.zoneKey === 'critical');
+    const whyCriticalPresses = machineDetails.map(m => m.id);
+    const keyDriverPresses = machineDetails.map(m => m.id);
+    const validationPassed = allInCriticalZone && whyCriticalPresses.every(id => bannerPresses.includes(id)) && keyDriverPresses.every(id => bannerPresses.includes(id));
+    console.info('[critical-banner-scope-validation]', { bannerPresses, allInCriticalZone, whyCriticalPresses, keyDriverPresses, validationPassed });
+    if (!validationPassed) {
+      console.warn('[critical-banner-scope-mismatch]', { bannerPresses, allInCriticalZone, whyCriticalPresses, keyDriverPresses, machineDetails });
     }
     return {
-      criticalPressNames,
-      criticalPressIds,
-      criticalTotalDurationSeconds,
-      criticalTotalEvents,
-      criticalBottleneckSubsystem,
-      criticalDominantError,
+      machineDetails,
+      criticalPressNames: machineDetails.map(m => m.name),
+      criticalPressIds: bannerPresses,
       overallWasteRatio: Number(globalKpis?.wasteRatioFlats ?? globalKpis?.wasteRatio ?? 0),
       overallAvailability: Number(globalKpis?.availabilityPercent ?? 0),
-      validation
+      validation: { bannerPresses, allInCriticalZone, whyCriticalPresses, keyDriverPresses, validationPassed }
     };
   }
 
@@ -6192,12 +6192,8 @@ function renderPressValidationNote(diagnostics) {
       .filter(row => row.zoneKey === zone)
       .sort((a, b) => (Number(b.totalDurationSeconds || 0) - Number(a.totalDurationSeconds || 0)) || (Number(b.totalEvents || 0) - Number(a.totalEvents || 0)) || ((b.severityScore || 0) - (a.severityScore || 0)))
       .slice(0, 2));
-    const criticalPriorityRows = chartRows
-      .filter(row => row.zoneKey === 'critical')
-      .sort((a, b) => (Number(b.totalDurationSeconds || 0) - Number(a.totalDurationSeconds || 0)) || (Number(b.avgDurationSeconds || 0) - Number(a.avgDurationSeconds || 0)) || (Number(b.totalEvents || 0) - Number(a.totalEvents || 0)))
-      .slice(0, 3);
-    const highlightRows = (criticalPriorityRows.length ? [...criticalPriorityRows, ...quadrantPriorityRows] : quadrantPriorityRows).length
-      ? (criticalPriorityRows.length ? [...criticalPriorityRows, ...quadrantPriorityRows] : quadrantPriorityRows)
+    const highlightRows = quadrantPriorityRows.length
+      ? quadrantPriorityRows
       : chartRows.slice().sort((a,b)=>(b.severityScore||0)-(a.severityScore||0)).slice(0, Math.max(1, labelLimit));
     const labelWhitelist = new Set(highlightRows.map(row => row.name));
     const severityValues = chartRows.map(row => Number(row.severityScore || 0)).filter(Number.isFinite);
@@ -6231,35 +6227,11 @@ function renderPressValidationNote(diagnostics) {
             dominantError: row.dominantError || '',
             topSubsystem: row.topSubsystem || ''
           })),
-          pointRadius: ctx => {
-            const row = ctx.raw || {};
-            const base = dotRadiusForRow(row);
-            return labelWhitelist.has(row.name) ? (base + 1.2) : base;
-          },
-          pointHoverRadius: ctx => {
-            const row = ctx.raw || {};
-            const base = dotRadiusForRow(row);
-            return labelWhitelist.has(row.name) ? (base + 5) : (base + 3);
-          },
-          pointBackgroundColor: ctx => {
-            const row = ctx.raw || {};
-            const opacity = row.zoneKey === 'critical'
-              ? (labelWhitelist.has(row.name) ? '.99' : '.78')
-              : (labelWhitelist.has(row.name) ? '.90' : (compact ? '.32' : '.45'));
-            return String(row.zoneColor || 'rgba(183,198,222,.44)').replace(/,\s*[\d.]+\)$/, `,${opacity})`);
-          },
-          pointBorderColor: ctx => {
-            const row = ctx.raw || {};
-            if (row.zoneKey === 'critical') return 'rgba(255,64,64,.98)';
-            if (row.zoneKey === 'inefficient' && labelWhitelist.has(row.name)) return 'rgba(255,176,97,.88)';
-            return labelWhitelist.has(row.name) ? 'rgba(232,241,255,.82)' : 'rgba(0,0,0,0)';
-          },
-          pointBorderWidth: ctx => {
-            const row = ctx.raw || {};
-            if (row.zoneKey === 'critical' && labelWhitelist.has(row.name)) return 3;
-            if (row.zoneKey === 'inefficient' && labelWhitelist.has(row.name)) return 2;
-            return labelWhitelist.has(row.name) ? 1.2 : 0;
-          }
+          pointRadius: ctx => dotRadiusForRow(ctx.raw || {}),
+          pointHoverRadius: ctx => dotRadiusForRow(ctx.raw || {}) + 3,
+          pointBackgroundColor: ctx => (ctx.raw?.zoneColor || 'rgba(183,198,222,.44)'),
+          pointBorderColor: ctx => labelWhitelist.has(ctx.raw?.name) ? 'rgba(232,241,255,.92)' : 'rgba(0,0,0,0)',
+          pointBorderWidth: ctx => labelWhitelist.has(ctx.raw?.name) ? 1.8 : 0
         }]
       },
       options: {
@@ -6324,43 +6296,6 @@ function renderPressValidationNote(diagnostics) {
           ctx.restore();
         }
       }, zonePlugin, {
-        id: 'press-priority-glow',
-        beforeDatasetDraw(chart) {
-          const { ctx } = chart;
-          ctx.save();
-          ctx.shadowBlur = 0;
-          ctx.shadowColor = 'transparent';
-        },
-        afterDatasetDraw(chart) {
-          const { ctx } = chart;
-          const points = chart.getDatasetMeta(0)?.data || [];
-          points.forEach((point, index) => {
-            const row = chartRows[index];
-            if (!row || !labelWhitelist.has(row.name)) return;
-            if (row.zoneKey === 'critical') {
-              ctx.save();
-              ctx.beginPath();
-              ctx.arc(point.x, point.y, Math.max(6, dotRadiusForRow(row)) + 2.5, 0, Math.PI * 2);
-              ctx.strokeStyle = 'rgba(255,88,88,.86)';
-              ctx.lineWidth = 2.1;
-              ctx.shadowBlur = 16;
-              ctx.shadowColor = 'rgba(255,64,64,.85)';
-              ctx.stroke();
-              ctx.restore();
-            } else if (row.zoneKey === 'inefficient') {
-              ctx.save();
-              ctx.beginPath();
-              ctx.arc(point.x, point.y, Math.max(6, dotRadiusForRow(row)) + 1.5, 0, Math.PI * 2);
-              ctx.strokeStyle = 'rgba(255,176,97,.72)';
-              ctx.lineWidth = 1.4;
-              ctx.shadowBlur = 8;
-              ctx.shadowColor = 'rgba(255,176,97,.6)';
-              ctx.stroke();
-              ctx.restore();
-            }
-          });
-        }
-      }, {
         id: 'press-smart-labels',
         afterDatasetsDraw(chart) {
           const { ctx } = chart;
@@ -8872,12 +8807,17 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     showCommandToast._t = setTimeout(() => toast.classList.remove('show'), 2600);
   }
 
-  function explainCriticalDrivers() {
-    const summary = STATE.merged?.summary || {};
-    const topPress = summary?.focusPress || summary?.topPressByDowntime?.name || summary?.topPressByEvents?.name || 'top press';
-    const topSubsystem = summary?.pressTopSubsystem?.name || summary?.topSubsystem?.name || 'main subsystem';
-    const topError = summary?.pressTopError?.name || summary?.topAlert?.name || 'top recurring alert';
-    showCommandToast('Key drivers: ' + topPress + ', ' + topSubsystem + ', ' + topError, 'info');
+  function explainCriticalDrivers(action = 'why-critical') {
+    const context = STATE.criticalBannerContext || {};
+    const machines = context.machineDetails || [];
+    if (!machines.length) {
+      showCommandToast('No Critical-zone machines available in current scope.', 'warning');
+      return;
+    }
+    const message = action === 'key-drivers'
+      ? `Critical key drivers: ${machines.map(m => `${m.id} (bottleneck ${m.bottleneck || 'unavailable'}${m.dominantError ? `, error ${m.dominantError}` : ''})`).join(' • ')}`
+      : `Why critical: ${machines.map(m => `${m.id} low events + high duration (${Number(m.events || 0).toLocaleString()} events, ${formatClockDuration(m.downtimeSeconds || 0)} downtime${m.bottleneck ? `, bottleneck ${m.bottleneck}` : ', bottleneck unavailable'}${m.dominantError ? `, error ${m.dominantError}` : ''})`).join(' • ')}`;
+    showCommandToast(message, 'info');
     document.getElementById('executiveSummaryCard')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
@@ -8991,7 +8931,7 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     if (appVersionMeta) appVersionMeta.textContent = `Dashboard version: ${APP_VERSION}`;
     const summaryBtnEl = document.getElementById('summaryBtn');
     document.getElementById('filtersBtn')?.addEventListener('click', () => document.querySelector('.command-filters')?.classList.toggle('show'));
-    document.querySelectorAll('.command-alert-actions span').forEach((el, idx) => el.addEventListener('click', () => { if (idx < 2) explainCriticalDrivers(); else closeAllOverlays('alert-dismiss'); }));
+    document.querySelectorAll('.command-alert-actions span').forEach((el, idx) => el.addEventListener('click', () => { if (idx === 0) explainCriticalDrivers('why-critical'); else if (idx === 1) explainCriticalDrivers('key-drivers'); else closeAllOverlays('alert-dismiss'); }));
     document.querySelectorAll('[data-ai-action]').forEach(btn => btn.addEventListener('click', () => handleAiAction(btn.dataset.aiAction)));
     document.getElementById('aiAssistantPanel')?.querySelector('.ai-head span')?.addEventListener('click', () => document.getElementById('aiAssistantPanel')?.classList.toggle('collapsed'));
 
