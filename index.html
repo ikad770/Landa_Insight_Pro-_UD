@@ -255,7 +255,7 @@
     .command-controls .btn, .command-controls .meta-pill { min-height:36px; border-radius:8px; background:rgba(10,22,38,.86); border:1px solid rgba(139,180,226,.22); color:#f5f8ff; box-shadow:0 8px 18px rgba(0,0,0,.18); }
     .command-alert { display:flex; align-items:center; gap:12px; border:1px solid rgba(255,75,75,.62); background:linear-gradient(90deg, rgba(113,18,24,.78), rgba(68,12,20,.50)); border-radius:8px; padding:9px 12px; box-shadow:0 0 28px rgba(255,40,40,.12), inset 0 0 0 1px rgba(255,255,255,.04); }
     .critical-pill { display:inline-flex; align-items:center; gap:7px; color:#fff; background:linear-gradient(135deg,#f04444,#9d1f2a); border:1px solid rgba(255,140,140,.35); padding:6px 11px; border-radius:7px; font-weight:800; font-size:.82rem; }
-    .command-alert-text { color:#fff; font-size:.89rem; flex:1; }
+    .command-alert-text { color:#fff; font-size:.89rem; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .command-alert-text strong { color:#ff6262; }
     .command-alert-actions { display:flex; gap:22px; color:#58b8ff; font-size:.82rem; white-space:nowrap; }
     .command-meta { display:flex; flex-wrap:wrap; gap:9px; color:#9dafc8; font-size:.78rem; align-items:center; }
@@ -4522,8 +4522,24 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
       const topSubsystem = summary?.pressTopSubsystem?.name || summary?.topSubsystem?.name || 'QCS';
       const wastePct = metricRegistry.wasteRatio.format(kpis.wasteRatioFlats ?? kpis.wasteRatio ?? 0);
       const availPct = metricRegistry.availability.format((kpis.availabilityPercent == null ? null : kpis.availabilityPercent / 100));
+      const impactModel = buildFullImpactModel(sourceScope || {});
+      const criticalRows = (impactModel?.rows || [])
+        .filter(row => row?.zoneKey === 'critical')
+        .sort((a, b) => (Number(b?.totalDurationSeconds || 0) - Number(a?.totalDurationSeconds || 0))
+          || (Number(b?.avgDurationSeconds || 0) - Number(a?.avgDurationSeconds || 0))
+          || (Number(b?.totalEvents || 0) - Number(a?.totalEvents || 0)));
+      const topCriticalRows = criticalRows.slice(0, 2);
+      const pressList = topCriticalRows.map(row => shortPressIdFromLabel(row?.name) || row?.name).filter(Boolean);
+      const pressText = pressList.length > 1
+        ? `${pressList.slice(0, -1).join(', ')} and ${pressList[pressList.length - 1]}`
+        : (pressList[0] || 'N/A');
       const alertText = document.getElementById('criticalAlertText');
-      if (alertText) alertText.innerHTML = `${esc(topPress)} drives <strong>${Number(summary?.topPressDowntimeShare || summary?.globalDriverShare || 25).toFixed(1)}%</strong> of total downtime • ${esc(topSubsystem)} is the main bottleneck • Waste ${esc(wastePct)} • Availability ${esc(availPct)}`;
+      if (alertText) {
+        alertText.innerHTML = criticalRows.length
+          ? `CRITICAL: ${esc(pressText)} ${criticalRows.length === 1 ? 'has' : 'have'} severe long-duration failures • Bottleneck: ${esc(topSubsystem)} • Waste ${esc(wastePct)} • Availability ${esc(availPct)}`
+          : `NO CRITICAL PRESS: Biggest downtime driver is ${esc(shortPressIdFromLabel(topPress) || topPress)} • Bottleneck: ${esc(topSubsystem)} • Waste ${esc(wastePct)} • Availability ${esc(availPct)}`;
+        alertText.title = alertText.textContent || '';
+      }
 
       renderDowntimePressMainChart(sourceScope);
       renderDowntimeTrendMainChart(sourceScope);
