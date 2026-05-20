@@ -257,6 +257,7 @@
     .critical-pill { display:inline-flex; align-items:center; gap:7px; color:#fff; background:linear-gradient(135deg,#f04444,#9d1f2a); border:1px solid rgba(255,140,140,.35); padding:6px 11px; border-radius:7px; font-weight:800; font-size:.82rem; }
     .command-alert-text { color:#fff; font-size:.89rem; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .command-alert-text strong { color:#ff6262; }
+    .critical-machine-chip { display:inline-flex; align-items:center; gap:6px; padding:2px 7px; border-radius:999px; border:1px solid rgba(255,144,144,.45); background:rgba(124,23,34,.32); }
     .command-alert-actions { display:flex; gap:22px; color:#58b8ff; font-size:.82rem; white-space:nowrap; }
     .command-meta { display:flex; flex-wrap:wrap; gap:9px; color:#9dafc8; font-size:.78rem; align-items:center; }
     .command-meta .meta-pill, .meta-indicators .meta-pill { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); padding:4px 8px; border-radius:999px; }
@@ -4526,15 +4527,15 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
         .sort((a, b) => (Number(b?.totalDurationSeconds || 0) - Number(a?.totalDurationSeconds || 0))
           || (Number(b?.avgDurationSeconds || 0) - Number(a?.avgDurationSeconds || 0))
           || (Number(b?.totalEvents || 0) - Number(a?.totalEvents || 0)));
-      const bannerContext = buildCriticalBannerContext(criticalRows, sourceScope?.errorsAgg || [], kpis, summary);
+      const bannerContext = buildCriticalBannerContext(criticalRows, sourceScope?.filteredErrorEventsNative || sourceScope?.errorsAgg || [], kpis, summary);
       STATE.criticalBannerContext = bannerContext;
       const alertText = document.getElementById('criticalAlertText');
       if (alertText) {
         if (bannerContext.machineDetails.length) {
           const machinesLine = bannerContext.machineDetails
-            .map(machine => `${machine.id}: ${Number(machine.events || 0).toLocaleString()} events, ${formatClockDuration(machine.downtimeSeconds || 0)} downtime, ${machine.bottleneck ? `bottleneck ${machine.bottleneck}` : 'bottleneck unavailable'}`)
+            .map(machine => `<span class="critical-machine-chip"><strong>[${esc(machine.id)}]</strong> ${Number(machine.events || 0).toLocaleString()} events, ${esc(formatDurationBannerCompact(machine.downtimeSeconds || 0))} downtime, ${machine.bottleneck ? `bottleneck ${esc(machine.bottleneck)}` : 'bottleneck unavailable'}</span>`)
             .join(' • ');
-          alertText.innerHTML = `CRITICAL: ${esc(machinesLine)} • Overall Waste ${esc(wastePct)} • Overall Availability ${esc(availPct)}`;
+          alertText.innerHTML = `CRITICAL: ${machinesLine} • Overall Waste ${esc(wastePct)} • Overall Availability ${esc(availPct)}`;
         } else {
           alertText.innerHTML = `NO CRITICAL PRESS: No press is currently in the Critical zone • Overall Waste ${esc(wastePct)} • Overall Availability ${esc(availPct)}`;
         }
@@ -4562,25 +4563,23 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     const machineDetails = topCriticalRows.map(row => {
       const pressName = row?.name || '';
       const pressId = shortPressIdFromLabel(pressName) || pressName || 'Unknown';
-      const scopedRows = (errorRows || []).filter(er => er?.name === pressName);
-      const subsystemMap = new Map();
-      const errorMap = new Map();
-      scopedRows.forEach(er => {
-        const duration = Number(er?.downtime || er?.totalDurationSeconds || 0);
-        const events = Number(er?.events || er?.totalEvents || 0);
-        const subsystem = er?.topSubsystem || er?.subsystem || '';
-        const dominantError = er?.topError || er?.dominantError || er?.errorState || er?.alert || '';
-        if (subsystem) subsystemMap.set(subsystem, (subsystemMap.get(subsystem) || 0) + duration);
-        if (dominantError) errorMap.set(dominantError, (errorMap.get(dominantError) || 0) + events);
+      const scopedRows = (errorRows || []).filter(er => {
+        const rowPress = er?.canonicalPress || er?.press || er?.name || er?.machine || er?.machineName || er?.Press || '';
+        return shortPressIdFromLabel(rowPress) === pressId;
       });
+      const availableFields = [...new Set(scopedRows.flatMap(row => Object.keys(row || {})))].slice(0, 30);
+      const bottleneckResolution = resolveCriticalMachineBottleneck(scopedRows);
+      if (!bottleneckResolution.bottleneck) {
+        console.warn('[critical-banner-bottleneck-unavailable]', { pressId, matchingRowsCount: scopedRows.length, availableFields });
+      }
       return {
         name: pressName,
         id: pressId,
         events: Number(row?.totalEvents || 0),
         downtimeSeconds: Number(row?.totalDurationSeconds || 0),
         avgDurationSeconds: Number(row?.avgDurationSeconds || 0),
-        bottleneck: [...subsystemMap.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || '',
-        dominantError: [...errorMap.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || '',
+        bottleneck: bottleneckResolution.bottleneck || '',
+        dominantError: bottleneckResolution.dominantError || '',
         zoneKey: row?.zoneKey || ''
       };
     });
@@ -5566,6 +5565,47 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     if (strict) return strict[0].toUpperCase();
     const fallback = raw.match(/[A-Za-z]+\d{1,4}/);
     return fallback ? fallback[0].toUpperCase() : firstToken;
+  }
+
+  function formatDurationBannerCompact(sec) {
+    const totalSeconds = Math.max(0, Math.round(Number(sec) || 0));
+    const totalMinutes = Math.floor(totalSeconds / 60);
+    const totalHours = Math.floor(totalMinutes / 60);
+    if (totalHours >= 24) {
+      const days = Math.floor(totalHours / 24);
+      const hours = totalHours % 24;
+      return `${days}d ${hours}h`;
+    }
+    const hours = totalHours;
+    const minutes = totalMinutes % 60;
+    return `${hours}h ${minutes}m`;
+  }
+
+  function resolveCriticalMachineBottleneck(scopedRows = []) {
+    const rows = (scopedRows || []).filter(Boolean);
+    if (!rows.length) return { bottleneck: '', dominantError: '' };
+    const subsystemByDuration = new Map();
+    const subsystemByCount = new Map();
+    const errorByDuration = new Map();
+    const errorByCount = new Map();
+    rows.forEach(row => {
+      const duration = Math.max(0, Number(row?.durationSeconds || row?.totalErrorDurationSeconds || row?.totalDurationSeconds || row?.downtime || 0));
+      const subsystem = String(row?.subsystem || row?.topSubsystem || '').trim();
+      const errorName = String(row?.name || row?.alertTitle || row?.errorState || row?.topError || row?.dominantError || '').trim();
+      if (subsystem) {
+        subsystemByDuration.set(subsystem, (subsystemByDuration.get(subsystem) || 0) + duration);
+        subsystemByCount.set(subsystem, (subsystemByCount.get(subsystem) || 0) + 1);
+      }
+      if (errorName) {
+        errorByDuration.set(errorName, (errorByDuration.get(errorName) || 0) + duration);
+        errorByCount.set(errorName, (errorByCount.get(errorName) || 0) + 1);
+      }
+    });
+    const topKey = map => [...map.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+    return {
+      bottleneck: topKey(subsystemByDuration) || topKey(subsystemByCount) || topKey(errorByDuration) || topKey(errorByCount) || '',
+      dominantError: topKey(errorByDuration) || topKey(errorByCount) || ''
+    };
   }
 
   function buildValidatedPressImpactRows(errorsAgg = []) {
