@@ -270,11 +270,18 @@
     .command-kpis .k { font-size:.72rem; letter-spacing:0; text-transform:none; color:#c2d0e4; }
     .command-kpis .v { font-size:1.25rem; font-weight:850; margin-top:4px; line-height:1.05; color:#fff; }
     .command-kpis .kpi-sub { margin-top:9px; color:#9dafc8; font-size:.70rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .command-kpis .kpi-sub:before { content:'vs prev. period  '; color:#b6c5db; }
-    .command-kpis .kpi[data-delta-tone="up-bad"] .kpi-sub:after { content:' ↑ 12.4%'; color:#ff4b4b; font-weight:800; }
-    .command-kpis .kpi[data-delta-tone="up-good"] .kpi-sub:after { content:' ↑ 5.3%'; color:#32d583; font-weight:800; }
-    .command-kpis .kpi[data-delta-tone="down-good"] .kpi-sub:after { content:' ↓ 3.2%'; color:#32d583; font-weight:800; }
-    .command-kpis .kpi[data-delta-tone="down-bad"] .kpi-sub:after { content:' ↓ 4.6%'; color:#ff4b4b; font-weight:800; }
+    .compare-btn.active { border-color: rgba(80,212,150,.66) !important; background: linear-gradient(140deg, rgba(28,68,58,.9), rgba(18,52,44,.9)) !important; color:#dbffe9 !important; }
+    .executive-compare-row { margin-top:6px; border:1px solid rgba(120,180,235,.28); border-radius:12px; padding:10px; background:linear-gradient(140deg, rgba(8,20,35,.96), rgba(8,18,31,.90)); }
+    .executive-compare-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; font-size:.78rem; color:#b5c8e4; }
+    .executive-compare-grid { display:grid; grid-template-columns:repeat(7,minmax(120px,1fr)); gap:8px; }
+    .executive-compare-card { border:1px solid rgba(120,172,235,.22); border-radius:10px; padding:8px; background:linear-gradient(165deg, rgba(15,31,53,.86), rgba(9,20,34,.85)); display:grid; gap:4px; }
+    .executive-compare-card .label { font-size:.68rem; color:#9db0cb; text-transform:uppercase; letter-spacing:.05em; }
+    .executive-compare-card .delta { font-size:.88rem; font-weight:720; }
+    .executive-compare-card .current, .executive-compare-card .baseline { font-size:.68rem; color:#afc2de; }
+    .executive-compare-card.improved .delta { color:#54d58f; }
+    .executive-compare-card.worsened .delta { color:#ff906f; }
+    .executive-compare-card.neutral .delta { color:#8eb1da; }
+    .executive-compare-empty { font-size:.82rem; color:#ffd9b3; border:1px dashed rgba(240,177,101,.42); border-radius:10px; padding:10px; background:rgba(240,177,101,.08); }
     .command-layout { display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:10px; align-items:start; }
     .command-grid { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:10px; }
     .command-card, .command-grid .card, .ai-panel { background:linear-gradient(150deg, rgba(10,24,40,.94), rgba(7,17,29,.92)); border:1px solid rgba(122,171,229,.20); border-radius:10px; box-shadow:0 18px 42px rgba(0,0,0,.26), inset 0 0 0 1px rgba(255,255,255,.018); }
@@ -1125,6 +1132,7 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
             <button id="filtersBtn" class="btn secondary" type="button">▿ Filters</button>
             <button id="exportBtn" class="btn secondary">⇧ Share / Export</button>
                         <button id="replaceBtn" class="btn">Load new dataset</button>
+            <button id="compareToggleBtn" class="btn secondary compare-btn" type="button">Compare: OFF</button>
             <button id="summaryBtn" class="btn secondary">Summary</button>
           </div>
         </header>
@@ -1139,9 +1147,10 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
           <span id="datasetMeta">Dataset not loaded</span>
           <span id="appVersionMeta">Dashboard version: InsightPro+ v1.6.0</span>
           <span id="headerDataStatus" class="meta-pill ok hidden">Data status</span>
-                    <span>Confidence: <strong class="confidence-high">HIGH</strong></span>
+                    <span id="dataValidationLabel" class="meta-pill ok">Data validation: OK</span>
         </section>
 
+        <section id="executiveComparisonRow" class="executive-compare-row hidden"></section>
         <section id="kpiStrip" class="kpis command-kpis"></section>
         <section id="dashboardStatusPanel" class="dashboard-status hidden"></section>
 
@@ -1338,6 +1347,7 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     renderQueued: false,
     storedDatasets: [],
     activeSnapshotId: null,
+    executiveComparisonEnabled: false,
   };
 
   const APP_VERSION = 'InsightPro+ v1.6.0';
@@ -4717,16 +4727,16 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     const mtbfValue = rec.confidence === 'unavailable' ? 'Unavailable' : metricRegistry.mtbf.format(k.mtbf);
     const totalDowntimePct = Number(rec?.totalDowntimePct ?? ((k?.totalDowntimePct != null) ? k.totalDowntimePct * 100 : 0));
     const cards = [
-      ['Total Events', 'events', metricRegistry.events.format(k.totalEvents), 'up-bad', '↗'],
-      ['Downtime', 'downtime', `${totalDowntimePct.toFixed(2)}%`, 'up-bad', '◷'],
-      ['MTTR (Avg Duration)', 'mttr', mttrValue, 'up-bad', '⏱'],
-      ['MTBF', 'mtbf', mtbfValue, 'up-good', '∿'],
-      ['Volume (Good + Waste)', 'volume', `${formatCompactNumber(k.totalPrintedFlats || 0)}`, 'up-good', '⬡'],
-      ['Waste Ratio', 'wasteRatio', metricRegistry.wasteRatio.format(k.wasteRatioFlats ?? k.wasteRatio), 'down-good', '♻'],
-      ['Availability', 'availability', metricRegistry.availability.format((k.availabilityPercent == null ? null : k.availabilityPercent / 100)), 'down-bad', '◉'],
+      ['Total Events', 'events', metricRegistry.events.format(k.totalEvents), 'neutral', '↗'],
+      ['Downtime', 'downtime', `${totalDowntimePct.toFixed(2)}%`, 'neutral', '◷'],
+      ['MTTR (Avg Duration)', 'mttr', mttrValue, 'neutral', '⏱'],
+      ['MTBF', 'mtbf', mtbfValue, 'neutral', '∿'],
+      ['Volume (Good + Waste)', 'volume', `${formatCompactNumber(k.totalPrintedFlats || 0)}`, 'neutral', '⬡'],
+      ['Waste Ratio', 'wasteRatio', metricRegistry.wasteRatio.format(k.wasteRatioFlats ?? k.wasteRatio), 'neutral', '♻'],
+      ['Availability', 'availability', metricRegistry.availability.format((k.availabilityPercent == null ? null : k.availabilityPercent / 100)), 'neutral', '◉'],
     ];
     const subtitles = {
-      events: 'Events', downtime: 'Total lost time', mttr: 'Avg repair time', mtbf: 'Between failures', volume: 'Printed flats', wasteRatio: 'Waste / total flats', availability: 'Available / tracked time'
+      events: 'Total tracked machine events', downtime: 'Total accumulated downtime', mttr: 'Average repair duration', mtbf: 'Average time between failures', volume: 'Total printed production volume', wasteRatio: 'Waste vs total production', availability: 'Productive vs tracked machine time'
     };
     const kpiIconSvg = (metricKey) => ({
       events: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>',
@@ -6515,6 +6525,9 @@ function renderPressValidationNote(diagnostics) {
       scopedSource.filteredVolumeRowsNative.length > 0;
     return { filters, scopedMergedRows, scopedErrorRows, scopedSource, scopedKpis, executiveSummary, hasScopedData };
   }
+  function getScopedMetricsFromPayload(payload = {}) {
+    return payload?.kpis || {};
+  }
 
   function buildCustomerVolumeChart(volumeAggRows, metric = 'totalPrintedFlats', sort = 'desc', expanded = false) {
     const byPress = new Map();
@@ -7159,6 +7172,57 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       deltaLabel: `${delta >= 0 ? '+' : ''}${delta.toLocaleString(undefined, { maximumFractionDigits: digits })}`,
       pctLabel: pct == null ? 'N/A' : `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`,
     };
+  }
+  function getComparisonBaselineSnapshot() {
+    const currentId = STATE.activeSnapshotId || STATE.snapshotSourceMeta?.id || null;
+    const datasets = (STATE.storedDatasets || []).filter(hasValidSnapshotPayload);
+    return datasets.find(item => item?.id && item.id !== currentId) || null;
+  }
+  function computeComparisonMetricDeltas(currentKpis = {}, baselineKpis = {}) {
+    const defs = [
+      { key: 'downtime', label: 'Downtime', formatter: v => `${Number(v || 0).toFixed(2)}%`, curr: Number(currentKpis.totalDowntimePct || 0) * 100, base: Number(baselineKpis.totalDowntimePct || 0) * 100, better: 'lower', pp: true },
+      { key: 'mttr', label: 'MTTR', formatter: v => metricRegistry.mttr.format(v), curr: Number(currentKpis.mttr || 0), base: Number(baselineKpis.mttr || 0), better: 'lower' },
+      { key: 'mtbf', label: 'MTBF', formatter: v => metricRegistry.mtbf.format(v), curr: Number(currentKpis.mtbf || 0), base: Number(baselineKpis.mtbf || 0), better: 'higher' },
+      { key: 'volume', label: 'Volume', formatter: v => formatCompactNumber(v || 0), curr: Number(currentKpis.totalPrintedFlats || 0), base: Number(baselineKpis.totalPrintedFlats || 0), better: 'higher' },
+      { key: 'wasteRatio', label: 'Waste Ratio', formatter: v => metricRegistry.wasteRatio.format(v / 100), curr: Number(currentKpis.wasteRatioFlats ?? currentKpis.wasteRatio ?? 0) * 100, base: Number(baselineKpis.wasteRatioFlats ?? baselineKpis.wasteRatio ?? 0) * 100, better: 'lower', pp: true },
+      { key: 'availability', label: 'Availability', formatter: v => metricRegistry.availability.format(v / 100), curr: Number(currentKpis.availabilityPercent || 0), base: Number(baselineKpis.availabilityPercent || 0), better: 'higher', pp: true },
+      { key: 'events', label: 'Events', formatter: v => metricRegistry.events.format(v), curr: Number(currentKpis.totalEvents || 0), base: Number(baselineKpis.totalEvents || 0), better: 'neutral' },
+    ];
+    return defs.map(def => {
+      const delta = def.curr - def.base;
+      const valid = Number.isFinite(delta) && Number.isFinite(def.base);
+      if (!valid || !Number.isFinite(def.curr)) {
+        console.warn('[executive-comparison-metric-unavailable]', { metric: def.key, reason: 'invalid-number' });
+        return { ...def, tone: 'neutral', status: 'unavailable', deltaLabel: 'N/A', currentLabel: def.formatter(def.curr), baselineLabel: 'N/A' };
+      }
+      const pct = def.base === 0 ? null : ((def.curr - def.base) / def.base) * 100;
+      const deltaLabel = def.pp ? `${delta >= 0 ? '+' : ''}${delta.toFixed(2)} pp` : `${delta >= 0 ? '+' : ''}${delta.toFixed(2)} (${pct == null || !Number.isFinite(pct) ? 'N/A' : `${pct.toFixed(1)}%`})`;
+      const improved = def.better === 'neutral' ? null : (def.better === 'lower' ? delta < 0 : delta > 0);
+      const tone = improved === null ? 'neutral' : (delta === 0 ? 'neutral' : (improved ? 'improved' : 'worsened'));
+      return { ...def, tone, status: tone === 'neutral' ? 'neutral' : (tone === 'improved' ? 'improved' : 'worsened'), deltaLabel, currentLabel: def.formatter(def.curr), baselineLabel: def.formatter(def.base) };
+    });
+  }
+  function renderExecutiveComparisonRow(scopeModel) {
+    const row = document.getElementById('executiveComparisonRow');
+    const btn = document.getElementById('compareToggleBtn');
+    if (!row || !btn) return;
+    btn.classList.toggle('active', !!STATE.executiveComparisonEnabled);
+    btn.textContent = STATE.executiveComparisonEnabled ? 'Compare: ON' : 'Compare: OFF';
+    if (!STATE.executiveComparisonEnabled) { row.classList.add('hidden'); row.innerHTML = ''; return; }
+    row.classList.remove('hidden');
+    const baseline = getComparisonBaselineSnapshot();
+    const filtersApplied = scopeModel?.filters || {};
+    const currentDatasetId = STATE.activeSnapshotId || STATE.snapshotSourceMeta?.id || 'live-session';
+    if (!baseline) {
+      console.warn('[executive-comparison]', 'No validated baseline dataset available');
+      row.innerHTML = `<div class="executive-compare-head"><strong>Executive Comparison</strong><span>Operational trend summary vs previous validated dataset</span></div><div class="executive-compare-empty">No validated baseline dataset available</div>`;
+      console.info('[executive-comparison]', { enabled: true, currentDatasetId, baselineDatasetId: null, baselineDateRange: null, metricsComputed: 0, filtersApplied, validationPassed: false });
+      return;
+    }
+    const baselineKpis = getScopedMetricsFromPayload(baseline.payload || {});
+    const deltas = computeComparisonMetricDeltas(scopeModel.scopedKpis || {}, baselineKpis || {});
+    row.innerHTML = `<div class="executive-compare-head"><strong>Executive Comparison</strong><span>Operational trend summary vs previous validated dataset</span></div><div class="executive-compare-grid">${deltas.map(m => `<article class="executive-compare-card ${m.tone}"><div class="label">${esc(m.label)}</div><div class="delta">${esc(m.deltaLabel)}</div><div class="current">Current: ${esc(m.currentLabel)}</div><div class="baseline">${esc(m.status === 'unavailable' ? 'vs baseline period: N/A' : `Baseline: ${m.baselineLabel}`)}</div></article>`).join('')}</div>`;
+    console.info('[executive-comparison]', { enabled: true, currentDatasetId, baselineDatasetId: baseline.id, baselineDateRange: `${baseline.startDate || 'n/a'} → ${baseline.endDate || 'n/a'}`, metricsComputed: deltas.length, filtersApplied, validationPassed: deltas.some(d => d.status !== 'unavailable') });
   }
 
   function simulationTooltipLabel(ctx, formatter = v => Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 })) {
@@ -8136,6 +8200,7 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     }
     syncMetricToggleUI();
     renderKpis(STATE.kpis);
+    renderExecutiveComparisonRow(STATE.dashboardScopeModel);
     const safeRankingRender = (key) => {
       try {
         const rankings = buildMetricRankings(sourceScope, STATE.filtered, key, errorEvents);
@@ -8970,6 +9035,10 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     const appVersionMeta = document.getElementById('appVersionMeta');
     if (appVersionMeta) appVersionMeta.textContent = `Dashboard version: ${APP_VERSION}`;
     const summaryBtnEl = document.getElementById('summaryBtn');
+    document.getElementById('compareToggleBtn')?.addEventListener('click', () => {
+      STATE.executiveComparisonEnabled = !STATE.executiveComparisonEnabled;
+      renderExecutiveComparisonRow(STATE.dashboardScopeModel || getCurrentDashboardScopeModel());
+    });
     document.getElementById('filtersBtn')?.addEventListener('click', () => document.querySelector('.command-filters')?.classList.toggle('show'));
     document.querySelectorAll('.command-alert-actions span').forEach((el, idx) => el.addEventListener('click', () => { if (idx === 0) explainCriticalDrivers('why-critical'); else if (idx === 1) explainCriticalDrivers('key-drivers'); else closeAllOverlays('alert-dismiss'); }));
     document.querySelectorAll('[data-ai-action]').forEach(btn => btn.addEventListener('click', () => handleAiAction(btn.dataset.aiAction)));
