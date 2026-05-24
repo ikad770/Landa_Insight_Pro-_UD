@@ -278,19 +278,26 @@
     .executive-compare-note{font-size:.7rem;color:#9cb0cb;text-align:right}
     .executive-compare-badges{display:flex;justify-content:flex-end;gap:6px;margin-top:6px}
     .executive-compare-badge{font-size:.66rem;padding:3px 7px;border-radius:999px;border:1px solid rgba(126,173,230,.28);color:#bad3f1;background:rgba(35,67,109,.28)}
-    .executive-compare-grid { display:grid; grid-template-columns:repeat(7,minmax(120px,1fr)); gap:9px; }
-    .executive-compare-card { min-height:96px; border:1px solid rgba(120,172,235,.22); border-radius:12px; padding:8px 9px; background:linear-gradient(170deg, rgba(20,43,71,.82), rgba(9,21,36,.9)); display:grid; gap:4px; align-content:start; }
+    .executive-compare-grid { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:8px; }
+    .executive-compare-card { min-height:88px; border:1px solid rgba(120,172,235,.24); border-radius:10px; padding:10px 10px 9px; background:linear-gradient(160deg, rgba(13,33,55,.92), rgba(8,19,33,.93)); display:grid; gap:5px; align-content:start; box-shadow:0 10px 22px rgba(0,0,0,.22), inset 0 0 0 1px rgba(255,255,255,.015); }
     .executive-compare-top{display:flex;align-items:center;gap:7px}
-    .executive-compare-icon{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:11px;color:#7ed5ff;background:rgba(21,137,255,.16);border:1px solid rgba(21,137,255,.38)}
+    .executive-compare-icon{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:12px;color:#7ed5ff;background:rgba(21,137,255,.16);border:1px solid rgba(21,137,255,.36);box-shadow:0 0 14px rgba(21,137,255,.14)}
     .executive-compare-card .label { font-size:.7rem; color:#c0d4ef; text-transform:uppercase; letter-spacing:.05em; font-weight:700; }
     .executive-compare-card .trend { font-size:.68rem; color:#9cb2d0; }
-    .executive-compare-card .delta { font-size:1rem; font-weight:800; line-height:1.04; }
-    .executive-compare-card .values { font-size:.67rem; color:#aec4e0; display:grid; gap:2px; margin-top:2px; }
-    .executive-compare-card .hint { font-size:.62rem; color:#8fa6c6; }
+    .executive-compare-card .delta { font-size:1.02rem; font-weight:860; line-height:1.03; letter-spacing:-.01em; }
+    .executive-compare-card .values { font-size:.67rem; color:#9fb5d2; display:block; margin-top:1px; }
+    .executive-compare-card .hint { font-size:.61rem; color:#88a3c3; opacity:.95; }
     .executive-compare-card.improved .delta, .executive-compare-card.improved .trend { color:#5de29d; }
     .executive-compare-card.worsened .delta, .executive-compare-card.worsened .trend { color:#ff8f78; }
     .executive-compare-card.minor .delta, .executive-compare-card.minor .trend { color:#ffc46a; }
     .executive-compare-card.neutral .delta, .executive-compare-card.neutral .trend { color:#97b5da; }
+    .executive-compare-card.improved{border-color:rgba(87,223,158,.42);box-shadow:0 0 0 1px rgba(87,223,158,.12),0 10px 22px rgba(0,0,0,.22),0 0 18px rgba(87,223,158,.09)}
+    .executive-compare-card.worsened{border-color:rgba(255,151,122,.42);box-shadow:0 0 0 1px rgba(255,151,122,.12),0 10px 22px rgba(0,0,0,.22),0 0 18px rgba(255,132,99,.09)}
+    .executive-compare-card.minor{border-color:rgba(255,198,107,.34);box-shadow:0 0 0 1px rgba(255,198,107,.10),0 10px 22px rgba(0,0,0,.22)}
+    .executive-compare-card.neutral{border-color:rgba(124,172,227,.28)}
+    .executive-compare-card.improved .executive-compare-icon{background:rgba(50,213,131,.17);border-color:rgba(50,213,131,.34);color:#64e4aa}
+    .executive-compare-card.worsened .executive-compare-icon{background:rgba(255,114,88,.18);border-color:rgba(255,114,88,.34);color:#ff9f8b}
+    .executive-compare-card.minor .executive-compare-icon{background:rgba(255,196,0,.16);border-color:rgba(255,196,0,.30);color:#ffd46d}
     .executive-compare-empty { font-size:.82rem; color:#d0e0f5; border:1px dashed rgba(131,170,219,.46); border-radius:11px; padding:12px; background:rgba(41,86,143,.12); }
     .command-layout { display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:10px; align-items:start; }
     .command-grid { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:10px; }
@@ -7223,13 +7230,13 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
   }
   function computeComparisonMetricDeltas(currentKpis = {}, baselineKpis = {}) {
     const defs = [
-      { key: 'downtime', label: 'Downtime', icon: '⏱', formatter: v => `${Number(v || 0).toFixed(2)}%`, curr: Number(currentKpis.totalDowntimePct || 0) * 100, base: Number(baselineKpis.totalDowntimePct || 0) * 100, better: 'lower', pp: true },
+      { key: 'events', label: 'Events', icon: '🔔', formatter: v => metricRegistry.events.format(v), curr: Number(currentKpis.totalEvents || 0), base: Number(baselineKpis.totalEvents || 0), better: 'neutral' },
+      { key: 'downtime', label: 'Downtime', icon: '⏱', formatter: v => `${Number(v || 0).toFixed(2)}%`, curr: Number(currentKpis.totalDowntimePct || 0) * 100, base: Number(baselineKpis.totalDowntimePct || 0) * 100, better: 'lower', percentMetric: true },
       { key: 'mttr', label: 'MTTR', icon: '🛠', formatter: v => metricRegistry.mttr.format(v), curr: Number(currentKpis.mttr || 0), base: Number(baselineKpis.mttr || 0), better: 'lower' },
       { key: 'mtbf', label: 'MTBF', icon: '🧭', formatter: v => metricRegistry.mtbf.format(v), curr: Number(currentKpis.mtbf || 0), base: Number(baselineKpis.mtbf || 0), better: 'higher' },
       { key: 'volume', label: 'Volume', icon: '📦', formatter: v => formatCompactNumber(v || 0), curr: Number(currentKpis.totalPrintedFlats || 0), base: Number(baselineKpis.totalPrintedFlats || 0), better: 'higher' },
-      { key: 'wasteRatio', label: 'Waste Ratio', icon: '♻', formatter: v => metricRegistry.wasteRatio.format(v / 100), curr: Number(currentKpis.wasteRatioFlats ?? currentKpis.wasteRatio ?? 0) * 100, base: Number(baselineKpis.wasteRatioFlats ?? baselineKpis.wasteRatio ?? 0) * 100, better: 'lower', pp: true },
-      { key: 'availability', label: 'Availability', icon: '⚡', formatter: v => metricRegistry.availability.format(v / 100), curr: Number(currentKpis.availabilityPercent || 0), base: Number(baselineKpis.availabilityPercent || 0), better: 'higher', pp: true },
-      { key: 'events', label: 'Events', icon: '🔔', formatter: v => metricRegistry.events.format(v), curr: Number(currentKpis.totalEvents || 0), base: Number(baselineKpis.totalEvents || 0), better: 'neutral' },
+      { key: 'wasteRatio', label: 'Waste Ratio', icon: '♻', formatter: v => metricRegistry.wasteRatio.format(v / 100), curr: Number(currentKpis.wasteRatioFlats ?? currentKpis.wasteRatio ?? 0) * 100, base: Number(baselineKpis.wasteRatioFlats ?? baselineKpis.wasteRatio ?? 0) * 100, better: 'lower', percentMetric: true },
+      { key: 'availability', label: 'Availability', icon: '⚡', formatter: v => metricRegistry.availability.format(v / 100), curr: Number(currentKpis.availabilityPercent || 0), base: Number(baselineKpis.availabilityPercent || 0), better: 'higher', percentMetric: true },
     ];
     return defs.map(def => {
       const delta = def.curr - def.base;
@@ -7241,15 +7248,14 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       const pct = def.base === 0 ? null : ((def.curr - def.base) / def.base) * 100;
       const pctAbs = pct == null || !Number.isFinite(pct) ? null : Math.abs(pct);
       const ppAbs = Math.abs(delta);
-      const isNoChange = def.pp ? ppAbs < 0.05 : (pctAbs != null && pctAbs < 0.1);
-      const isMinor = !isNoChange && (def.pp ? ppAbs < 0.25 : (pctAbs != null && pctAbs < 2));
+      const isNoChange = def.percentMetric ? ppAbs < 0.05 : (pctAbs != null && pctAbs < 0.1);
+      const isMinor = !isNoChange && (def.percentMetric ? ppAbs < 0.25 : (pctAbs != null && pctAbs < 2));
       const improved = def.better === 'neutral' ? null : (def.better === 'lower' ? delta < 0 : delta > 0);
       const tone = improved === null || isNoChange ? 'neutral' : (isMinor ? 'minor' : (improved ? 'improved' : 'worsened'));
-      const directionWord = delta > 0 ? 'Up' : (delta < 0 ? 'Down' : 'Stable');
-      const trendLabel = isNoChange ? `${def.label} Stable` : (improved === true ? `${def.label} Improved` : (improved === false ? `${def.label} ${directionWord}` : `${def.label} Changed`));
+      const trendLabel = isNoChange ? 'Stable' : (improved === true ? 'Improved' : (improved === false ? 'Worsened' : 'Changed'));
       const arrow = delta > 0 ? '▲' : (delta < 0 ? '▼' : '•');
-      const deltaLabel = def.pp ? `${delta >= 0 ? '+' : ''}${delta.toFixed(2)} נק׳ אחוז` : `${pct == null || !Number.isFinite(pct) ? 'N/A' : `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`}`;
-      const auxLabel = def.pp ? (pct == null || !Number.isFinite(pct) ? 'N/A' : `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`) : `${delta >= 0 ? '+' : ''}${delta.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+      const deltaLabel = pct == null || !Number.isFinite(pct) ? 'N/A' : `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`;
+      const auxLabel = `${delta >= 0 ? '+' : ''}${delta.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
       return { ...def, tone, severity: tone, status: tone === 'neutral' ? 'neutral' : (tone === 'improved' ? 'improved' : 'worsened'), trendLabel, arrow, deltaLabel, auxLabel, currentLabel: def.formatter(def.curr), baselineLabel: def.formatter(def.base) };
     });
   }
@@ -7275,7 +7281,7 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     const baselineRange = `${comparisonDatasets.older.startDate || 'n/a'} → ${comparisonDatasets.older.endDate || 'n/a'}`;
     const currentRange = `${comparisonDatasets.newer.startDate || 'n/a'} → ${comparisonDatasets.newer.endDate || 'n/a'}`;
     const filterCount = Object.values(filtersApplied || {}).filter(v => v != null && String(v).trim() !== '' && String(v).toLowerCase() !== 'all').length;
-    row.innerHTML = `<div class="executive-compare-head"><div><div class="executive-compare-title">Executive Comparison</div><div class="executive-compare-range">Comparing baseline → current</div><div class="executive-compare-range">Baseline: ${esc(baselineRange)} • Current: ${esc(currentRange)}</div></div><div><div class="executive-compare-note">Chronological comparison aligned to KPI cards</div>${filterCount ? '<div class="executive-compare-badges"><span class="executive-compare-badge">Filtered comparison</span></div>' : ''}</div></div><div class="executive-compare-grid">${deltas.map(m => `<article class="executive-compare-card ${m.tone}" title="${esc(m.pp ? `${m.label} change: ${m.deltaLabel}. Relative change: ${m.auxLabel}` : `${m.label} relative change: ${m.deltaLabel}. Absolute change: ${m.auxLabel}`)}"><div class="executive-compare-top"><div class="executive-compare-icon">${esc(m.icon || '•')}</div><div class="label">${esc(m.label)}</div></div><div class="delta">${esc(m.arrow)} ${esc(m.deltaLabel)}</div><div class="trend">${esc(m.trendLabel)}</div><div class="values"><div>Previous: ${esc(m.status === 'unavailable' ? 'N/A' : m.baselineLabel)}</div><div>Current: ${esc(m.currentLabel)}</div></div><div class="hint">${esc(m.pp ? `${m.auxLabel} שינוי יחסי` : `${m.auxLabel} שינוי אבסולוטי`)}</div></article>`).join('')}</div>`;
+    row.innerHTML = `<div class="executive-compare-head"><div><div class="executive-compare-title">Executive Comparison</div><div class="executive-compare-range">Baseline ${esc(baselineRange)}  •  Current ${esc(currentRange)}</div></div><div><div class="executive-compare-note">Operational trend summary vs previous validated dataset</div>${filterCount ? '<div class="executive-compare-badges"><span class="executive-compare-badge">Filtered comparison</span></div>' : ''}</div></div><div class="executive-compare-grid">${deltas.map(m => `<article class="executive-compare-card ${m.tone}" title="${esc(`${m.label} | Baseline ${m.status === 'unavailable' ? 'N/A' : m.baselineLabel} | Current ${m.currentLabel} | Relative Δ ${m.deltaLabel} | Absolute Δ ${m.auxLabel} | Rule: ${m.better === 'lower' ? 'Lower is better' : m.better === 'higher' ? 'Higher is better' : 'Informational metric'}`)}"><div class="executive-compare-top"><div class="executive-compare-icon">${esc(m.icon || '•')}</div><div class="label">${esc(m.label)}</div></div><div class="delta">${esc(m.arrow)} ${esc(m.deltaLabel)}</div><div class="trend">${esc(m.trendLabel)}</div><div class="values">Previous ${esc(m.status === 'unavailable' ? 'N/A' : m.baselineLabel)} → Current ${esc(m.currentLabel)}</div><div class="hint">Absolute Δ ${esc(m.auxLabel)}${m.percentMetric ? '%' : ''}</div></article>`).join('')}</div>`;
     console.info('[executive-comparison-ui]', { baselineRange, currentRange, cardCount: deltas.length, filtersApplied, validationPassed: deltas.some(d => d.status !== 'unavailable'), usedChronologicalOrder: comparisonDatasets.usedChronologicalOrder, olderDatasetId: comparisonDatasets.older.id, newerDatasetId: comparisonDatasets.newer.id });
   }
 
