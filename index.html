@@ -7501,7 +7501,7 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     const topN = (chartKey, arr, headingId) => {
       const groupedRows = Array.isArray(arr) ? arr : [];
       const showAll = setDrilldownCardControl({ chartId: headingId?.replace('Heading', 'Chart'), headingId, drilldownKey, chartKey, totalRows: groupedRows.length, limit: chartLimit });
-      const displayRows = getChartDisplayRows(groupedRows, chartLimit, showAll);
+      const displayRows = getDrilldownDisplayRows(groupedRows, chartLimit, showAll);
       console.info('[drilldown-chart-display]', { drilldownKey, chartKey, showAll, totalRows: groupedRows.length, displayedRows: displayRows.length, limit: chartLimit });
       return displayRows;
     };
@@ -7988,7 +7988,7 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     STATE.drilldown.displayKey = drilldownKey;
     const getChartRowsForDisplay = (chartKey, groupedRows, headingId) => {
       const showAll = setDrilldownCardControl({ headingId, drilldownKey, chartKey, totalRows: groupedRows.length, limit: chartLimit });
-      const displayRows = getChartDisplayRows(groupedRows, chartLimit, showAll);
+      const displayRows = getDrilldownDisplayRows(groupedRows, chartLimit, showAll);
       console.info('[drilldown-chart-display]', { drilldownKey, chartKey, showAll, totalRows: groupedRows.length, displayedRows: displayRows.length, limit: chartLimit });
       return { showAll, displayRows };
     };
@@ -8007,7 +8007,7 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     const { showAll, displayRows: displayedTopRowsInitial } = getChartRowsForDisplay('top-grouped', topRows, 'drilldownTopHeading');
     let displayedTopRows = displayedTopRowsInitial;
     if (topRows.length > 0 && displayedTopRows.length === 0) {
-      console.warn('[drilldown-display-empty-fallback]', { drilldownKey, groupedRowsCount: topRows.length, showAll, limit: chartLimit });
+      console.warn('[drilldown-display-empty-fallback]', { drilldownKey, chartKey: 'top-grouped', groupedRowsCount: topRows.length, showAll, limit: chartLimit });
       displayedTopRows = topRows.slice(0, chartLimit);
     }
     const topLabels = displayedTopRows.map(x => x[0]);
@@ -8060,7 +8060,7 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     const { showAll: secondaryShowAll, displayRows: secondaryInitialRows } = getChartRowsForDisplay('secondary-grouped', secondaryGroupedRows, 'drilldownSecondaryHeading');
     let secondary = secondaryInitialRows;
     if (secondaryGroupedRows.length > 0 && secondary.length === 0) {
-      console.warn('[drilldown-display-empty-fallback]', { drilldownKey, groupedRowsCount: secondaryGroupedRows.length, showAll: secondaryShowAll, limit: chartLimit });
+      console.warn('[drilldown-display-empty-fallback]', { drilldownKey, chartKey: 'secondary-grouped', groupedRowsCount: secondaryGroupedRows.length, showAll: secondaryShowAll, limit: chartLimit });
       secondary = secondaryGroupedRows.slice(0, chartLimit);
     }
     safeRenderDrilldownChart('drilldownSecondaryChart', () => replaceChart('drilldownSecondaryChart', {
