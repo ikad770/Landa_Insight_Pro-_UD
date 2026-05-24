@@ -271,17 +271,27 @@
     .command-kpis .v { font-size:1.25rem; font-weight:850; margin-top:4px; line-height:1.05; color:#fff; }
     .command-kpis .kpi-sub { margin-top:9px; color:#9dafc8; font-size:.70rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .compare-btn.active { border-color: rgba(80,212,150,.66) !important; background: linear-gradient(140deg, rgba(28,68,58,.9), rgba(18,52,44,.9)) !important; color:#dbffe9 !important; }
-    .executive-compare-row { margin-top:6px; border:1px solid rgba(120,180,235,.28); border-radius:12px; padding:10px; background:linear-gradient(140deg, rgba(8,20,35,.96), rgba(8,18,31,.90)); }
-    .executive-compare-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; font-size:.78rem; color:#b5c8e4; }
-    .executive-compare-grid { display:grid; grid-template-columns:repeat(7,minmax(120px,1fr)); gap:8px; }
-    .executive-compare-card { border:1px solid rgba(120,172,235,.22); border-radius:10px; padding:8px; background:linear-gradient(165deg, rgba(15,31,53,.86), rgba(9,20,34,.85)); display:grid; gap:4px; }
-    .executive-compare-card .label { font-size:.68rem; color:#9db0cb; text-transform:uppercase; letter-spacing:.05em; }
-    .executive-compare-card .delta { font-size:.88rem; font-weight:720; }
-    .executive-compare-card .current, .executive-compare-card .baseline { font-size:.68rem; color:#afc2de; }
-    .executive-compare-card.improved .delta { color:#54d58f; }
-    .executive-compare-card.worsened .delta { color:#ff906f; }
-    .executive-compare-card.neutral .delta { color:#8eb1da; }
-    .executive-compare-empty { font-size:.82rem; color:#ffd9b3; border:1px dashed rgba(240,177,101,.42); border-radius:10px; padding:10px; background:rgba(240,177,101,.08); }
+    .executive-compare-row { margin-top:8px; border:1px solid rgba(120,180,235,.26); border-radius:14px; padding:12px; background:linear-gradient(155deg, rgba(8,22,40,.95), rgba(6,16,29,.92)); box-shadow:0 14px 34px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.03); }
+    .executive-compare-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:9px; }
+    .executive-compare-title{font-size:.82rem;font-weight:800;letter-spacing:.03em;color:#d5e7ff;text-transform:uppercase}
+    .executive-compare-range{font-size:.74rem;color:#a9bedc;margin-top:3px;line-height:1.35}
+    .executive-compare-note{font-size:.7rem;color:#9cb0cb;text-align:right}
+    .executive-compare-badges{display:flex;justify-content:flex-end;gap:6px;margin-top:6px}
+    .executive-compare-badge{font-size:.66rem;padding:3px 7px;border-radius:999px;border:1px solid rgba(126,173,230,.28);color:#bad3f1;background:rgba(35,67,109,.28)}
+    .executive-compare-grid { display:grid; grid-template-columns:repeat(7,minmax(132px,1fr)); gap:9px; }
+    .executive-compare-card { min-height:108px; border:1px solid rgba(120,172,235,.2); border-radius:12px; padding:9px 10px; background:linear-gradient(170deg, rgba(17,38,64,.84), rgba(9,20,34,.86)); display:grid; gap:5px; align-content:start; }
+    .executive-compare-top{display:flex;align-items:center;gap:7px}
+    .executive-compare-icon{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:12px;color:#7ed5ff;background:rgba(21,137,255,.16);border:1px solid rgba(21,137,255,.4)}
+    .executive-compare-card .label { font-size:.7rem; color:#c0d4ef; text-transform:uppercase; letter-spacing:.05em; font-weight:700; }
+    .executive-compare-card .trend { font-size:.68rem; color:#9cb2d0; }
+    .executive-compare-card .delta { font-size:.95rem; font-weight:760; line-height:1.05; }
+    .executive-compare-card .values { font-size:.67rem; color:#aec4e0; display:grid; gap:2px; margin-top:2px; }
+    .executive-compare-card .hint { font-size:.62rem; color:#8fa6c6; }
+    .executive-compare-card.improved .delta, .executive-compare-card.improved .trend { color:#5de29d; }
+    .executive-compare-card.worsened .delta, .executive-compare-card.worsened .trend { color:#ff8f78; }
+    .executive-compare-card.minor .delta, .executive-compare-card.minor .trend { color:#ffc46a; }
+    .executive-compare-card.neutral .delta, .executive-compare-card.neutral .trend { color:#97b5da; }
+    .executive-compare-empty { font-size:.82rem; color:#d0e0f5; border:1px dashed rgba(131,170,219,.46); border-radius:11px; padding:12px; background:rgba(41,86,143,.12); }
     .command-layout { display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:10px; align-items:start; }
     .command-grid { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:10px; }
     .command-card, .command-grid .card, .ai-panel { background:linear-gradient(150deg, rgba(10,24,40,.94), rgba(7,17,29,.92)); border:1px solid rgba(122,171,229,.20); border-radius:10px; box-shadow:0 18px 42px rgba(0,0,0,.26), inset 0 0 0 1px rgba(255,255,255,.018); }
@@ -326,6 +336,9 @@
     .hidden-legacy { display:none!important; }
     .table-wrap { max-height:280px; }
     @media (max-width:860px){ .command-shell{display:block;padding:8px}.command-sidebar{display:none}.command-header{grid-template-columns:1fr}.command-grid,.insight-grid{display:block}.command-grid .card,.insight-tile{margin-bottom:10px}.command-kpis{grid-template-columns:repeat(2,1fr)} }
+    @media (max-width:1200px){ .executive-compare-grid{grid-template-columns:repeat(4,minmax(128px,1fr));} }
+    @media (max-width:860px){ .executive-compare-head{display:block}.executive-compare-note{text-align:left;margin-top:5px}.executive-compare-badges{justify-content:flex-start}.executive-compare-grid{grid-template-columns:repeat(2,minmax(120px,1fr));} }
+    @media (max-width:520px){ .executive-compare-grid{grid-template-columns:1fr;} }
 
     @media(max-width:1000px){ .kpis{grid-template-columns:repeat(2,minmax(150px,1fr));}.topbar{grid-template-columns:1fr}.span-6,.span-4,.span-8,.span-3{grid-column:span 12}.file-row{grid-template-columns:1fr} .file-state{justify-content:flex-start}.press-analytics-grid{grid-template-columns:1fr}.press-chart-area{height:280px;min-height:280px;}.press-chart-area.primary{height:340px;min-height:340px;} }
     @media(max-width:760px){ .summary-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.kpi-row.core,.kpi-row.context{grid-template-columns:repeat(2,minmax(150px,1fr));} }
@@ -7180,26 +7193,34 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
   }
   function computeComparisonMetricDeltas(currentKpis = {}, baselineKpis = {}) {
     const defs = [
-      { key: 'downtime', label: 'Downtime', formatter: v => `${Number(v || 0).toFixed(2)}%`, curr: Number(currentKpis.totalDowntimePct || 0) * 100, base: Number(baselineKpis.totalDowntimePct || 0) * 100, better: 'lower', pp: true },
-      { key: 'mttr', label: 'MTTR', formatter: v => metricRegistry.mttr.format(v), curr: Number(currentKpis.mttr || 0), base: Number(baselineKpis.mttr || 0), better: 'lower' },
-      { key: 'mtbf', label: 'MTBF', formatter: v => metricRegistry.mtbf.format(v), curr: Number(currentKpis.mtbf || 0), base: Number(baselineKpis.mtbf || 0), better: 'higher' },
-      { key: 'volume', label: 'Volume', formatter: v => formatCompactNumber(v || 0), curr: Number(currentKpis.totalPrintedFlats || 0), base: Number(baselineKpis.totalPrintedFlats || 0), better: 'higher' },
-      { key: 'wasteRatio', label: 'Waste Ratio', formatter: v => metricRegistry.wasteRatio.format(v / 100), curr: Number(currentKpis.wasteRatioFlats ?? currentKpis.wasteRatio ?? 0) * 100, base: Number(baselineKpis.wasteRatioFlats ?? baselineKpis.wasteRatio ?? 0) * 100, better: 'lower', pp: true },
-      { key: 'availability', label: 'Availability', formatter: v => metricRegistry.availability.format(v / 100), curr: Number(currentKpis.availabilityPercent || 0), base: Number(baselineKpis.availabilityPercent || 0), better: 'higher', pp: true },
-      { key: 'events', label: 'Events', formatter: v => metricRegistry.events.format(v), curr: Number(currentKpis.totalEvents || 0), base: Number(baselineKpis.totalEvents || 0), better: 'neutral' },
+      { key: 'downtime', label: 'Downtime', icon: '⏱', formatter: v => `${Number(v || 0).toFixed(2)}%`, curr: Number(currentKpis.totalDowntimePct || 0) * 100, base: Number(baselineKpis.totalDowntimePct || 0) * 100, better: 'lower', pp: true },
+      { key: 'mttr', label: 'MTTR', icon: '🛠', formatter: v => metricRegistry.mttr.format(v), curr: Number(currentKpis.mttr || 0), base: Number(baselineKpis.mttr || 0), better: 'lower' },
+      { key: 'mtbf', label: 'MTBF', icon: '🧭', formatter: v => metricRegistry.mtbf.format(v), curr: Number(currentKpis.mtbf || 0), base: Number(baselineKpis.mtbf || 0), better: 'higher' },
+      { key: 'volume', label: 'Volume', icon: '📦', formatter: v => formatCompactNumber(v || 0), curr: Number(currentKpis.totalPrintedFlats || 0), base: Number(baselineKpis.totalPrintedFlats || 0), better: 'higher' },
+      { key: 'wasteRatio', label: 'Waste Ratio', icon: '♻', formatter: v => metricRegistry.wasteRatio.format(v / 100), curr: Number(currentKpis.wasteRatioFlats ?? currentKpis.wasteRatio ?? 0) * 100, base: Number(baselineKpis.wasteRatioFlats ?? baselineKpis.wasteRatio ?? 0) * 100, better: 'lower', pp: true },
+      { key: 'availability', label: 'Availability', icon: '⚡', formatter: v => metricRegistry.availability.format(v / 100), curr: Number(currentKpis.availabilityPercent || 0), base: Number(baselineKpis.availabilityPercent || 0), better: 'higher', pp: true },
+      { key: 'events', label: 'Events', icon: '🔔', formatter: v => metricRegistry.events.format(v), curr: Number(currentKpis.totalEvents || 0), base: Number(baselineKpis.totalEvents || 0), better: 'neutral' },
     ];
     return defs.map(def => {
       const delta = def.curr - def.base;
       const valid = Number.isFinite(delta) && Number.isFinite(def.base);
       if (!valid || !Number.isFinite(def.curr)) {
         console.warn('[executive-comparison-metric-unavailable]', { metric: def.key, reason: 'invalid-number' });
-        return { ...def, tone: 'neutral', status: 'unavailable', deltaLabel: 'N/A', currentLabel: def.formatter(def.curr), baselineLabel: 'N/A' };
+        return { ...def, tone: 'neutral', severity: 'neutral', status: 'unavailable', trendLabel: `${def.label} Unavailable`, arrow: '•', deltaLabel: 'N/A', auxLabel: 'N/A', currentLabel: def.formatter(def.curr), baselineLabel: 'N/A' };
       }
       const pct = def.base === 0 ? null : ((def.curr - def.base) / def.base) * 100;
-      const deltaLabel = def.pp ? `${delta >= 0 ? '+' : ''}${delta.toFixed(2)} pp` : `${delta >= 0 ? '+' : ''}${delta.toFixed(2)} (${pct == null || !Number.isFinite(pct) ? 'N/A' : `${pct.toFixed(1)}%`})`;
+      const pctAbs = pct == null || !Number.isFinite(pct) ? null : Math.abs(pct);
+      const ppAbs = Math.abs(delta);
+      const isNoChange = def.pp ? ppAbs < 0.05 : (pctAbs != null && pctAbs < 0.1);
+      const isMinor = !isNoChange && (def.pp ? ppAbs < 0.25 : (pctAbs != null && pctAbs < 2));
       const improved = def.better === 'neutral' ? null : (def.better === 'lower' ? delta < 0 : delta > 0);
-      const tone = improved === null ? 'neutral' : (delta === 0 ? 'neutral' : (improved ? 'improved' : 'worsened'));
-      return { ...def, tone, status: tone === 'neutral' ? 'neutral' : (tone === 'improved' ? 'improved' : 'worsened'), deltaLabel, currentLabel: def.formatter(def.curr), baselineLabel: def.formatter(def.base) };
+      const tone = improved === null || isNoChange ? 'neutral' : (isMinor ? 'minor' : (improved ? 'improved' : 'worsened'));
+      const directionWord = delta > 0 ? 'Up' : (delta < 0 ? 'Down' : 'Stable');
+      const trendLabel = isNoChange ? `${def.label} Stable` : (improved === true ? `${def.label} Improved` : (improved === false ? `${def.label} ${directionWord}` : `${def.label} Changed`));
+      const arrow = delta > 0 ? '▲' : (delta < 0 ? '▼' : '•');
+      const deltaLabel = def.pp ? `${delta >= 0 ? '+' : ''}${delta.toFixed(2)} pp` : `${pct == null || !Number.isFinite(pct) ? 'N/A' : `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`}`;
+      const auxLabel = def.pp ? (pct == null || !Number.isFinite(pct) ? 'N/A' : `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`) : `${delta >= 0 ? '+' : ''}${delta.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+      return { ...def, tone, severity: tone, status: tone === 'neutral' ? 'neutral' : (tone === 'improved' ? 'improved' : 'worsened'), trendLabel, arrow, deltaLabel, auxLabel, currentLabel: def.formatter(def.curr), baselineLabel: def.formatter(def.base) };
     });
   }
   function renderExecutiveComparisonRow(scopeModel) {
@@ -7215,14 +7236,17 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     const currentDatasetId = STATE.activeSnapshotId || STATE.snapshotSourceMeta?.id || 'live-session';
     if (!baseline) {
       console.warn('[executive-comparison]', 'No validated baseline dataset available');
-      row.innerHTML = `<div class="executive-compare-head"><strong>Executive Comparison</strong><span>Operational trend summary vs previous validated dataset</span></div><div class="executive-compare-empty">No validated baseline dataset available</div>`;
-      console.info('[executive-comparison]', { enabled: true, currentDatasetId, baselineDatasetId: null, baselineDateRange: null, metricsComputed: 0, filtersApplied, validationPassed: false });
+      row.innerHTML = `<div class="executive-compare-head"><div><div class="executive-compare-title">Executive Comparison</div><div class="executive-compare-range">No validated baseline dataset available</div></div><div><div class="executive-compare-note">Operational trend summary vs previous validated dataset</div></div></div><div class="executive-compare-empty">No validated baseline dataset available. Load or save another dataset to compare trends.</div>`;
+      console.info('[executive-comparison-ui]', { baselineRange: null, currentRange: null, cardCount: 0, filtersApplied, validationPassed: false });
       return;
     }
     const baselineKpis = getScopedMetricsFromPayload(baseline.payload || {});
     const deltas = computeComparisonMetricDeltas(scopeModel.scopedKpis || {}, baselineKpis || {});
-    row.innerHTML = `<div class="executive-compare-head"><strong>Executive Comparison</strong><span>Operational trend summary vs previous validated dataset</span></div><div class="executive-compare-grid">${deltas.map(m => `<article class="executive-compare-card ${m.tone}"><div class="label">${esc(m.label)}</div><div class="delta">${esc(m.deltaLabel)}</div><div class="current">Current: ${esc(m.currentLabel)}</div><div class="baseline">${esc(m.status === 'unavailable' ? 'vs baseline period: N/A' : `Baseline: ${m.baselineLabel}`)}</div></article>`).join('')}</div>`;
-    console.info('[executive-comparison]', { enabled: true, currentDatasetId, baselineDatasetId: baseline.id, baselineDateRange: `${baseline.startDate || 'n/a'} → ${baseline.endDate || 'n/a'}`, metricsComputed: deltas.length, filtersApplied, validationPassed: deltas.some(d => d.status !== 'unavailable') });
+    const baselineRange = `${baseline.startDate || 'n/a'} → ${baseline.endDate || 'n/a'}`;
+    const currentRange = `${STATE.snapshotSourceMeta?.startDate || STATE.currentDataStartDate || 'n/a'} → ${STATE.snapshotSourceMeta?.endDate || STATE.currentDataEndDate || 'n/a'}`;
+    const filterCount = Object.values(filtersApplied || {}).filter(v => v != null && String(v).trim() !== '' && String(v).toLowerCase() !== 'all').length;
+    row.innerHTML = `<div class="executive-compare-head"><div><div class="executive-compare-title">Executive Comparison</div><div class="executive-compare-range">Previous: ${esc(baselineRange)} • Current: ${esc(currentRange)}</div></div><div><div class="executive-compare-note">Operational trend summary vs previous validated dataset</div>${filterCount ? '<div class="executive-compare-badges"><span class="executive-compare-badge">Filtered comparison</span></div>' : ''}</div></div><div class="executive-compare-grid">${deltas.map(m => `<article class="executive-compare-card ${m.tone}" title="${esc(m.pp ? `${m.label} point change: ${m.deltaLabel}. Relative change: ${m.auxLabel}` : `${m.label} relative change: ${m.deltaLabel}. Absolute change: ${m.auxLabel}`)}"><div class="executive-compare-top"><div class="executive-compare-icon">${esc(m.icon || '•')}</div><div class="label">${esc(m.label)}</div></div><div class="delta">${esc(m.arrow)} ${esc(m.deltaLabel)}</div><div class="trend">${esc(m.trendLabel)}</div><div class="values"><div>Previous: ${esc(m.status === 'unavailable' ? 'N/A' : m.baselineLabel)}</div><div>Current: ${esc(m.currentLabel)}</div></div><div class="hint">${esc(m.pp ? `${m.auxLabel} relative change` : `${m.auxLabel} absolute change`)}</div></article>`).join('')}</div>`;
+    console.info('[executive-comparison-ui]', { baselineRange, currentRange, cardCount: deltas.length, filtersApplied, validationPassed: deltas.some(d => d.status !== 'unavailable') });
   }
 
   function simulationTooltipLabel(ctx, formatter = v => Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 })) {
