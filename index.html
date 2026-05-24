@@ -7880,6 +7880,9 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       return;
     }
     const selectedMetric = STATE.drilldown.metric === 'downtime' ? 'downtime' : 'events';
+    const drillPath = Array.isArray(STATE.drilldown.path) ? STATE.drilldown.path : [];
+    const isSubsystemRootLevel = dimension === 'subsystem' && drillPath.length === 1;
+    const isSubsystemMachineLevel = dimension === 'press' && drillPath.length >= 2 && drillPath[0]?.dimension === 'subsystem';
     setDrilldownHeading('drilldownTrendHeading', selectedMetric === 'downtime' ? 'Downtime trend (hh:mm:ss)' : 'Events trend');
     setDrilldownHeading('drilldownOpsHeading', selectedMetric === 'downtime' ? 'Downtime by alert' : 'Events by subsystem');
     const count = scoped.length;
@@ -7888,7 +7891,12 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     const avg = count ? (isVolume ? totalVolume / count : downtime / count) : 0;
     document.getElementById('drilldownExplanation').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Scope overview</h4><span class="risk-pill risk-medium">Event source</span></div><div class="micro">Source: normalized errors events in active scope. Formula: direct event count and duration rollups for the selected breadcrumb.</div>`;
     document.getElementById('drilldownCalcBody').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Scope and interactions</h4><span class="impact-chip">Press/subsystem/error/version/time</span></div><div class="micro">Click charts recursively to preserve breadcrumb context and move deeper into subsystem, error, and version slices.</div>`;
-    document.getElementById('drilldownTitle').textContent = `${dimension.charAt(0).toUpperCase() + dimension.slice(1)}: ${value}`;
+    if (isSubsystemMachineLevel) {
+      const subsystemLabel = drillPath[0]?.displayLabel || drillPath[0]?.entityKey || 'Unspecified';
+      document.getElementById('drilldownTitle').textContent = `Subsystem: ${subsystemLabel} / Press: ${value}`;
+    } else {
+      document.getElementById('drilldownTitle').textContent = `${dimension.charAt(0).toUpperCase() + dimension.slice(1)}: ${value}`;
+    }
     document.getElementById('drilldownSummary').textContent = isVolume
       ? `${count} matching jobs • Total volume ${totalVolume.toLocaleString()} • Avg job size ${avg.toFixed(1)}`
       : `${count} matching events • Total downtime ${formatDuration(downtime)} • Avg duration ${formatDuration(avg)}`;
@@ -7908,7 +7916,7 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     document.getElementById('drilldownCalcBody').innerHTML = `<div class="chart-head"><h4 style="margin:0;">What this selection means</h4><span class="risk-pill risk-medium">Analytical summary</span></div><div class="micro">${esc(analytics.insight)}${scopedDriver ? ` Press-scoped duration driver: ${scopedDriver}.` : ''}${globalDriver ? ` Global duration driver: ${globalDriver}.` : ''}</div>`;
     const nextDimension = sourceType === 'versionPerPress'
       ? 'press'
-      : getNextErrorDrillDimension(dimension);
+      : (isSubsystemRootLevel ? 'press' : (isSubsystemMachineLevel ? 'alert' : getNextErrorDrillDimension(dimension)));
     const topRows = sourceType === 'versionPerPress'
       ? (() => {
         const m = new Map();
@@ -7919,7 +7927,7 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
         });
         return [...m.entries()].sort((a, b) => b[1] - a[1]);
       })()
-      : (dimension === 'subsystem' ? analytics.topAlerts : analytics.topSubsystems);
+      : (isSubsystemRootLevel ? analytics.topPresses : (dimension === 'subsystem' ? analytics.topAlerts : analytics.topSubsystems));
     const topLabels = topRows.map(x => x[0]);
     const topValues = topRows.map(x => x[1]);
     const topPayloads = topRows.map(([label]) => ({
@@ -7929,6 +7937,8 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       metric: STATE.drilldown.metric || 'events',
       parentContext: { path: STATE.drilldown.path || [] }
     }));
+    if (isSubsystemRootLevel) setDrilldownHeading('drilldownTopHeading', 'Top presses by selected metric');
+    if (isSubsystemMachineLevel) setDrilldownHeading('drilldownTopHeading', 'Top errors by selected metric');
     replaceChart('drilldownTopChart', {
       type: 'bar',
       data: { labels: topLabels, datasets: [{ data: topValues, backgroundColor: topLabels.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }] },
@@ -7982,11 +7992,39 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     } else {
       showNoDataChart('drilldownOpsChart');
     }
+    if (isSubsystemRootLevel || isSubsystemMachineLevel) {
+      const expectedEvents = Number.isFinite(parentValue) ? parentValue : count;
+      const actualEvents = topRows.reduce((sum, [,v]) => sum + Number(v || 0), 0);
+      const expectedDuration = scoped.reduce((a, r) => a + cleanDurationSeconds(r), 0);
+      const actualDuration = (() => {
+        const grouped = new Map();
+        if (isSubsystemRootLevel) {
+          scoped.forEach(r => grouped.set(r.press || 'Unspecified', (grouped.get(r.press || 'Unspecified') || 0) + cleanDurationSeconds(r)));
+        } else {
+          scoped.forEach(r => {
+            const key = (r.name !== 'Unspecified' ? r.name : r.alertTitle) || 'Unspecified';
+            grouped.set(key, (grouped.get(key) || 0) + cleanDurationSeconds(r));
+          });
+        }
+        return [...grouped.values()].reduce((a, v) => a + Number(v || 0), 0);
+      })();
+      if (Math.abs(actualEvents - expectedEvents) > 0 || Math.abs(actualDuration - expectedDuration) > 1) {
+        console.warn('[drilldown-consistency-mismatch]', {
+          scope: isSubsystemRootLevel ? 'subsystem->machines' : 'subsystem+machine->errors',
+          expectedEvents,
+          actualEvents,
+          expectedDuration,
+          actualDuration
+        });
+      }
+    }
     const groupedTopRows = compactContributionRows(topRows, count);
     document.getElementById('drilldownCalcBody').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Calculation transparency table</h4><span class="impact-chip">Top component contributions</span></div><div class="table-wrap" style="max-height:220px;margin-top:8px;"><table><thead><tr><th>Component</th><th>Events</th><th>Contribution</th></tr></thead><tbody>${groupedTopRows.map(([name,val])=>`<tr><td>${esc(name)}</td><td>${Number(val).toLocaleString()}</td><td>${renderContributionBar(count?((val/count)*100):0)}</td></tr>`).join('')}</tbody></table></div>`;
     const columns = isVolume
       ? ['press', 'day', 'jobType', 'jobStatus', 'pressMode', 'totalVolume']
-      : ['press', 'subsystem', 'alert', 'version', 'start', 'duration'];
+      : (isSubsystemRootLevel
+        ? ['press', 'events', 'totalDuration', 'avgDuration', 'share']
+        : ['press', 'subsystem', 'alert', 'version', 'start', 'duration']);
     const sort = STATE.drilldown.sort || { key: columns[0], dir: 'asc' };
     const getVal = (r, key) => ({
       press: r.press, subsystem: r.subsystem,
@@ -7999,8 +8037,22 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       const cmp = typeof av === 'number' && typeof bv === 'number' ? av - bv : String(av).localeCompare(String(bv));
       return sort.dir === 'asc' ? cmp : -cmp;
     });
-    document.getElementById('drilldownTable').innerHTML = `<thead><tr>${columns.map(col => `<th data-dd-col="${col}" style="cursor:pointer">${esc(col)} ${sort.key === col ? (sort.dir === 'asc' ? '▲' : '▼') : ''}</th>`).join('')}</tr></thead><tbody>${sorted.slice(0, 1000).map(r => isVolume
+    const subsystemMachineRows = isSubsystemRootLevel ? (() => {
+      const m = new Map();
+      scoped.forEach(r => {
+        const key = r.press || 'Unspecified';
+        const slot = m.get(key) || { press: key, events: 0, totalDuration: 0 };
+        slot.events += 1;
+        slot.totalDuration += cleanDurationSeconds(r);
+        m.set(key, slot);
+      });
+      const arr = [...m.values()].map(row => ({ ...row, avgDuration: row.events ? (row.totalDuration / row.events) : 0, share: count ? ((row.events / count) * 100) : 0 }));
+      return arr.sort((a, b) => selectedMetric === 'downtime' ? b.totalDuration - a.totalDuration : b.events - a.events);
+    })() : [];
+    document.getElementById('drilldownTable').innerHTML = `<thead><tr>${columns.map(col => `<th data-dd-col="${col}" style="cursor:pointer">${esc(col)} ${sort.key === col ? (sort.dir === 'asc' ? '▲' : '▼') : ''}</th>`).join('')}</tr></thead><tbody>${(isSubsystemRootLevel ? subsystemMachineRows : sorted).slice(0, 1000).map(r => isVolume
       ? `<tr><td>${esc(r.press)}</td><td>${esc(r.day)}</td><td>${esc(r.jobType)}</td><td>${esc(r.jobStatus)}</td><td>${esc(r.pressMode)}</td><td>${esc((r.totalVolume || r.volume || 0).toLocaleString())}</td></tr>`
+      : isSubsystemRootLevel
+        ? `<tr><td>${esc(r.press)}</td><td>${esc(Number(r.events || 0).toLocaleString())}</td><td>${esc(formatDuration(Number(r.totalDuration || 0)))}</td><td>${esc(formatDuration(Number(r.avgDuration || 0)))}</td><td>${esc((Number(r.share || 0)).toFixed(1))}%</td></tr>`
       : `<tr><td>${esc(r.press)}</td><td>${esc(r.subsystem)}</td><td>${esc(r.name !== 'Unspecified' ? r.name : r.alertTitle)}</td><td>${esc(r.version || 'Version unavailable')}</td><td>${esc(r.startTime?.toISOString() || '')}</td><td>${esc(formatDuration(cleanDurationSeconds(r)))}</td></tr>`).join('')}</tbody>`;
     document.querySelectorAll('#drilldownTable [data-dd-col]').forEach(th => th.addEventListener('click', () => {
       const key = th.dataset.ddCol;
