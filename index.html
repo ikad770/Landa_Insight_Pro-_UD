@@ -271,20 +271,20 @@
     .command-kpis .v { font-size:1.25rem; font-weight:850; margin-top:4px; line-height:1.05; color:#fff; }
     .command-kpis .kpi-sub { margin-top:9px; color:#9dafc8; font-size:.70rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .compare-btn.active { border-color: rgba(80,212,150,.66) !important; background: linear-gradient(140deg, rgba(28,68,58,.9), rgba(18,52,44,.9)) !important; color:#dbffe9 !important; }
-    .executive-compare-row { margin-top:8px; border:1px solid rgba(120,180,235,.26); border-radius:14px; padding:12px; background:linear-gradient(155deg, rgba(8,22,40,.95), rgba(6,16,29,.92)); box-shadow:0 14px 34px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.03); }
-    .executive-compare-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:9px; }
+    .executive-compare-row { margin:6px 0 2px; border:1px solid rgba(120,180,235,.24); border-radius:14px; padding:10px 10px 9px; background:linear-gradient(160deg, rgba(9,24,43,.95), rgba(6,16,29,.93)); box-shadow:0 12px 30px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.03); }
+    .executive-compare-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:8px; }
     .executive-compare-title{font-size:.82rem;font-weight:800;letter-spacing:.03em;color:#d5e7ff;text-transform:uppercase}
-    .executive-compare-range{font-size:.74rem;color:#a9bedc;margin-top:3px;line-height:1.35}
+    .executive-compare-range{font-size:.73rem;color:#a9bedc;margin-top:3px;line-height:1.35}
     .executive-compare-note{font-size:.7rem;color:#9cb0cb;text-align:right}
     .executive-compare-badges{display:flex;justify-content:flex-end;gap:6px;margin-top:6px}
     .executive-compare-badge{font-size:.66rem;padding:3px 7px;border-radius:999px;border:1px solid rgba(126,173,230,.28);color:#bad3f1;background:rgba(35,67,109,.28)}
-    .executive-compare-grid { display:grid; grid-template-columns:repeat(7,minmax(132px,1fr)); gap:9px; }
-    .executive-compare-card { min-height:108px; border:1px solid rgba(120,172,235,.2); border-radius:12px; padding:9px 10px; background:linear-gradient(170deg, rgba(17,38,64,.84), rgba(9,20,34,.86)); display:grid; gap:5px; align-content:start; }
+    .executive-compare-grid { display:grid; grid-template-columns:repeat(7,minmax(120px,1fr)); gap:9px; }
+    .executive-compare-card { min-height:96px; border:1px solid rgba(120,172,235,.22); border-radius:12px; padding:8px 9px; background:linear-gradient(170deg, rgba(20,43,71,.82), rgba(9,21,36,.9)); display:grid; gap:4px; align-content:start; }
     .executive-compare-top{display:flex;align-items:center;gap:7px}
-    .executive-compare-icon{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:12px;color:#7ed5ff;background:rgba(21,137,255,.16);border:1px solid rgba(21,137,255,.4)}
+    .executive-compare-icon{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:11px;color:#7ed5ff;background:rgba(21,137,255,.16);border:1px solid rgba(21,137,255,.38)}
     .executive-compare-card .label { font-size:.7rem; color:#c0d4ef; text-transform:uppercase; letter-spacing:.05em; font-weight:700; }
     .executive-compare-card .trend { font-size:.68rem; color:#9cb2d0; }
-    .executive-compare-card .delta { font-size:.95rem; font-weight:760; line-height:1.05; }
+    .executive-compare-card .delta { font-size:1rem; font-weight:800; line-height:1.04; }
     .executive-compare-card .values { font-size:.67rem; color:#aec4e0; display:grid; gap:2px; margin-top:2px; }
     .executive-compare-card .hint { font-size:.62rem; color:#8fa6c6; }
     .executive-compare-card.improved .delta, .executive-compare-card.improved .trend { color:#5de29d; }
@@ -7191,6 +7191,36 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     const datasets = (STATE.storedDatasets || []).filter(hasValidSnapshotPayload);
     return datasets.find(item => item?.id && item.id !== currentId) || null;
   }
+  function parseComparableDateValue(value) {
+    if (!value) return Number.NaN;
+    const ts = Date.parse(String(value).trim());
+    return Number.isFinite(ts) ? ts : Number.NaN;
+  }
+  function buildExecutiveComparisonDatasets(previousSnapshot) {
+    const currentSnapshot = {
+      id: STATE.activeSnapshotId || STATE.snapshotSourceMeta?.id || 'live-session',
+      startDate: STATE.snapshotSourceMeta?.startDate || STATE.currentDataStartDate || null,
+      endDate: STATE.snapshotSourceMeta?.endDate || STATE.currentDataEndDate || null,
+      kpis: STATE.kpis || {},
+      source: 'current'
+    };
+    const baselineSnapshot = {
+      id: previousSnapshot?.id || 'baseline',
+      startDate: previousSnapshot?.startDate || null,
+      endDate: previousSnapshot?.endDate || null,
+      kpis: getScopedMetricsFromPayload(previousSnapshot?.payload || {}),
+      source: 'baseline'
+    };
+    const currentEndTs = parseComparableDateValue(currentSnapshot.endDate) || parseComparableDateValue(currentSnapshot.startDate);
+    const baselineEndTs = parseComparableDateValue(baselineSnapshot.endDate) || parseComparableDateValue(baselineSnapshot.startDate);
+    const chronological = Number.isFinite(currentEndTs) && Number.isFinite(baselineEndTs);
+    if (!chronological) {
+      return { older: baselineSnapshot, newer: currentSnapshot, usedChronologicalOrder: false };
+    }
+    return currentEndTs >= baselineEndTs
+      ? { older: baselineSnapshot, newer: currentSnapshot, usedChronologicalOrder: true }
+      : { older: currentSnapshot, newer: baselineSnapshot, usedChronologicalOrder: true };
+  }
   function computeComparisonMetricDeltas(currentKpis = {}, baselineKpis = {}) {
     const defs = [
       { key: 'downtime', label: 'Downtime', icon: '⏱', formatter: v => `${Number(v || 0).toFixed(2)}%`, curr: Number(currentKpis.totalDowntimePct || 0) * 100, base: Number(baselineKpis.totalDowntimePct || 0) * 100, better: 'lower', pp: true },
@@ -7218,7 +7248,7 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       const directionWord = delta > 0 ? 'Up' : (delta < 0 ? 'Down' : 'Stable');
       const trendLabel = isNoChange ? `${def.label} Stable` : (improved === true ? `${def.label} Improved` : (improved === false ? `${def.label} ${directionWord}` : `${def.label} Changed`));
       const arrow = delta > 0 ? '▲' : (delta < 0 ? '▼' : '•');
-      const deltaLabel = def.pp ? `${delta >= 0 ? '+' : ''}${delta.toFixed(2)} pp` : `${pct == null || !Number.isFinite(pct) ? 'N/A' : `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`}`;
+      const deltaLabel = def.pp ? `${delta >= 0 ? '+' : ''}${delta.toFixed(2)} נק׳ אחוז` : `${pct == null || !Number.isFinite(pct) ? 'N/A' : `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`}`;
       const auxLabel = def.pp ? (pct == null || !Number.isFinite(pct) ? 'N/A' : `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`) : `${delta >= 0 ? '+' : ''}${delta.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
       return { ...def, tone, severity: tone, status: tone === 'neutral' ? 'neutral' : (tone === 'improved' ? 'improved' : 'worsened'), trendLabel, arrow, deltaLabel, auxLabel, currentLabel: def.formatter(def.curr), baselineLabel: def.formatter(def.base) };
     });
@@ -7240,13 +7270,13 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       console.info('[executive-comparison-ui]', { baselineRange: null, currentRange: null, cardCount: 0, filtersApplied, validationPassed: false });
       return;
     }
-    const baselineKpis = getScopedMetricsFromPayload(baseline.payload || {});
-    const deltas = computeComparisonMetricDeltas(scopeModel.scopedKpis || {}, baselineKpis || {});
-    const baselineRange = `${baseline.startDate || 'n/a'} → ${baseline.endDate || 'n/a'}`;
-    const currentRange = `${STATE.snapshotSourceMeta?.startDate || STATE.currentDataStartDate || 'n/a'} → ${STATE.snapshotSourceMeta?.endDate || STATE.currentDataEndDate || 'n/a'}`;
+    const comparisonDatasets = buildExecutiveComparisonDatasets(baseline);
+    const deltas = computeComparisonMetricDeltas(comparisonDatasets.newer.kpis || {}, comparisonDatasets.older.kpis || {});
+    const baselineRange = `${comparisonDatasets.older.startDate || 'n/a'} → ${comparisonDatasets.older.endDate || 'n/a'}`;
+    const currentRange = `${comparisonDatasets.newer.startDate || 'n/a'} → ${comparisonDatasets.newer.endDate || 'n/a'}`;
     const filterCount = Object.values(filtersApplied || {}).filter(v => v != null && String(v).trim() !== '' && String(v).toLowerCase() !== 'all').length;
-    row.innerHTML = `<div class="executive-compare-head"><div><div class="executive-compare-title">Executive Comparison</div><div class="executive-compare-range">Previous: ${esc(baselineRange)} • Current: ${esc(currentRange)}</div></div><div><div class="executive-compare-note">Operational trend summary vs previous validated dataset</div>${filterCount ? '<div class="executive-compare-badges"><span class="executive-compare-badge">Filtered comparison</span></div>' : ''}</div></div><div class="executive-compare-grid">${deltas.map(m => `<article class="executive-compare-card ${m.tone}" title="${esc(m.pp ? `${m.label} point change: ${m.deltaLabel}. Relative change: ${m.auxLabel}` : `${m.label} relative change: ${m.deltaLabel}. Absolute change: ${m.auxLabel}`)}"><div class="executive-compare-top"><div class="executive-compare-icon">${esc(m.icon || '•')}</div><div class="label">${esc(m.label)}</div></div><div class="delta">${esc(m.arrow)} ${esc(m.deltaLabel)}</div><div class="trend">${esc(m.trendLabel)}</div><div class="values"><div>Previous: ${esc(m.status === 'unavailable' ? 'N/A' : m.baselineLabel)}</div><div>Current: ${esc(m.currentLabel)}</div></div><div class="hint">${esc(m.pp ? `${m.auxLabel} relative change` : `${m.auxLabel} absolute change`)}</div></article>`).join('')}</div>`;
-    console.info('[executive-comparison-ui]', { baselineRange, currentRange, cardCount: deltas.length, filtersApplied, validationPassed: deltas.some(d => d.status !== 'unavailable') });
+    row.innerHTML = `<div class="executive-compare-head"><div><div class="executive-compare-title">Executive Comparison</div><div class="executive-compare-range">Comparing baseline → current</div><div class="executive-compare-range">Baseline: ${esc(baselineRange)} • Current: ${esc(currentRange)}</div></div><div><div class="executive-compare-note">Chronological comparison aligned to KPI cards</div>${filterCount ? '<div class="executive-compare-badges"><span class="executive-compare-badge">Filtered comparison</span></div>' : ''}</div></div><div class="executive-compare-grid">${deltas.map(m => `<article class="executive-compare-card ${m.tone}" title="${esc(m.pp ? `${m.label} change: ${m.deltaLabel}. Relative change: ${m.auxLabel}` : `${m.label} relative change: ${m.deltaLabel}. Absolute change: ${m.auxLabel}`)}"><div class="executive-compare-top"><div class="executive-compare-icon">${esc(m.icon || '•')}</div><div class="label">${esc(m.label)}</div></div><div class="delta">${esc(m.arrow)} ${esc(m.deltaLabel)}</div><div class="trend">${esc(m.trendLabel)}</div><div class="values"><div>Previous: ${esc(m.status === 'unavailable' ? 'N/A' : m.baselineLabel)}</div><div>Current: ${esc(m.currentLabel)}</div></div><div class="hint">${esc(m.pp ? `${m.auxLabel} שינוי יחסי` : `${m.auxLabel} שינוי אבסולוטי`)}</div></article>`).join('')}</div>`;
+    console.info('[executive-comparison-ui]', { baselineRange, currentRange, cardCount: deltas.length, filtersApplied, validationPassed: deltas.some(d => d.status !== 'unavailable'), usedChronologicalOrder: comparisonDatasets.usedChronologicalOrder, olderDatasetId: comparisonDatasets.older.id, newerDatasetId: comparisonDatasets.newer.id });
   }
 
   function simulationTooltipLabel(ctx, formatter = v => Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 })) {
