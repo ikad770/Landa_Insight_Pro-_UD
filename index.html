@@ -1354,6 +1354,7 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     customerVolumeRows: [],
     customerVolumeAllRows: [],
     drilldown: { dimension: '', value: '', entityKey: '', rows: [], search: '', sort: null, showAll: false, sourceType: '', metric: '', path: [], mode: 'chart', metricKey: '', simulation: { pendingExcluded: new Set(), appliedExcluded: new Set() }, filters: {} },
+    drilldownDisplayMode: {},
     drilldownStack: [],
     baselineData: null,
     simulationData: null,
@@ -5858,23 +5859,46 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
   function getExpandedRows(fullRows = [], expandedLimit = null) {
     return Number.isFinite(expandedLimit) && expandedLimit > 0 ? [...fullRows].slice(0, expandedLimit) : [...fullRows];
   }
+  function getDrilldownDisplayRows(groupedRows, limit, showAll) {
+    const rows = Array.isArray(groupedRows) ? groupedRows : [];
+    if (showAll) return rows;
+    return rows.slice(0, Number.isFinite(limit) ? limit : 10);
+  }
   function getDisplayRows(rows = [], limit = 10, showAll = false) {
-    if (showAll) return [...rows];
-    return [...rows].slice(0, Math.max(1, Number(limit) || 10));
+    const groupedRows = Array.isArray(rows) ? rows : [];
+    const safeLimit = Number.isFinite(Number(limit)) ? Number(limit) : 10;
+    let displayRows = getDrilldownDisplayRows(groupedRows, safeLimit, showAll);
+    if (!displayRows.length && groupedRows.length) {
+      displayRows = groupedRows.slice(0, safeLimit);
+      console.warn('[drilldown-display-empty-fallback]', { groupedRowsCount: groupedRows.length, displayRowsCount: displayRows.length, showAll, limit: safeLimit });
+    }
+    return displayRows;
   }
   function applyDrilldownChartHeight(chartId, rowCount = 0, defaultHeight = 220) {
     const area = document.getElementById(chartId)?.closest('.chart-area');
     if (!area) return;
-    const dynamicHeight = Math.max(defaultHeight, Number(rowCount || 0) * 28);
+    const computedHeight = Number(rowCount || 0) * 28;
+    const dynamicHeight = Math.max(defaultHeight, Math.min(900, Number.isFinite(computedHeight) ? computedHeight : defaultHeight));
     area.style.height = `${dynamicHeight}px`;
     area.style.minHeight = `${defaultHeight}px`;
     area.style.maxHeight = '480px';
     area.style.overflowY = dynamicHeight > 480 ? 'auto' : 'hidden';
   }
+
+  function safeRenderDrilldownChart(chartName, renderFn) {
+    try {
+      renderFn();
+    } catch (error) {
+      console.warn('[drilldown-chart-render-error]', { chartName, error: String(error?.message || error) });
+      showNoDataChart(chartName, 'Chart failed to render in this panel.');
+    }
+  }
+
   function updateDrilldownShowAllButton() {
     const btn = document.getElementById('drilldownShowAllToggle');
     if (!btn) return;
-    const showAll = Boolean(STATE.drilldown?.showAll);
+    const drilldownKey = STATE.drilldown?.displayKey || 'unknown';
+    const showAll = (STATE.drilldownDisplayMode?.[drilldownKey] || 'top') === 'all';
     btn.textContent = showAll ? 'Show top' : 'Show all';
     btn.classList.toggle('active', showAll);
   }
@@ -7462,8 +7486,10 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       });
     };
     const chartLimit = 10;
-    const showAll = Boolean(STATE.drilldown?.showAll);
     const drilldownKey = `${metricKey}:${STATE.drilldown?.dimension || 'unknown'}:${STATE.drilldown?.sourceType || 'default'}`;
+    STATE.drilldown.displayKey = drilldownKey;
+    if (!STATE.drilldownDisplayMode[drilldownKey]) STATE.drilldownDisplayMode[drilldownKey] = 'top';
+    const showAll = STATE.drilldownDisplayMode[drilldownKey] === 'all';
     const topN = arr => getDisplayRows(arr, chartLimit, showAll);
     updateDrilldownShowAllButton();
     const cardsHost = ['drilldownTopChart','drilldownTrendChart','drilldownSecondaryChart','drilldownOpsChart'];
@@ -7714,7 +7740,7 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       const topSource = kpiDimensionForMetric(metricKey) === 'availability' ? 'availabilityNative' : (kpiDimensionForMetric(metricKey) === 'volume' ? 'volumeJobs' : 'errorEvents');
       const topMetric = metricKey;
       const topPayloads = topLabels.map(name => ({ entityKey: name, displayLabel: name, sourceType: topSource, metric: topMetric, parentContext: { path: [] } }));
-      replaceChart('drilldownTopChart', { type: 'bar', data: { labels: topLabels, datasets: simulationActive ? [{ label: 'Baseline', simRole: 'baseline', data: topBaselineVals, backgroundColor: 'rgba(151,167,194,.24)', borderColor: 'rgba(151,167,194,.48)', borderWidth: 1, borderRadius: 6 }, { label: 'Current', simRole: 'current', data: topCurrent, backgroundColor: topLabels.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }] : [{ label: profile.label, simRole: 'current', data: topCurrent, backgroundColor: topLabels.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }] }, options: { ...baseOptions('press', topLabels, topPayloads), plugins: { legend: { display: simulationActive, labels: { color: '#c6d3ea' } }, tooltip: simulationActive ? { callbacks: { label: simulationTooltipLabel } } : { callbacks: { label: ctx => `${ctx.parsed.y.toLocaleString(undefined, { maximumFractionDigits: 3 })}` } } } } });
+      safeRenderDrilldownChart('drilldownTopChart', () => replaceChart('drilldownTopChart', { type: 'bar', data: { labels: topLabels, datasets: simulationActive ? [{ label: 'Baseline', simRole: 'baseline', data: topBaselineVals, backgroundColor: 'rgba(151,167,194,.24)', borderColor: 'rgba(151,167,194,.48)', borderWidth: 1, borderRadius: 6 }, { label: 'Current', simRole: 'current', data: topCurrent, backgroundColor: topLabels.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }] : [{ label: profile.label, simRole: 'current', data: topCurrent, backgroundColor: topLabels.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }] }, options: { ...baseOptions('press', topLabels, topPayloads), plugins: { legend: { display: simulationActive, labels: { color: '#c6d3ea' } }, tooltip: simulationActive ? { callbacks: { label: simulationTooltipLabel } } : { callbacks: { label: ctx => `${ctx.parsed.y.toLocaleString(undefined, { maximumFractionDigits: 3 })}` } } } } }));
 
       const rowMetricValue = (row) => {
         return Number(row.metricValue || 0);
@@ -7738,7 +7764,7 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       const subsystemMap = new Map(); appliedRows.forEach(r => subsystemMap.set(r.subsystem || 'Unspecified', (subsystemMap.get(r.subsystem || 'Unspecified') || 0) + rowMetricValue(r)));
       const subsystemBaseMap = new Map(); baselineRows.forEach(r => subsystemBaseMap.set(r.subsystem || 'Unspecified', (subsystemBaseMap.get(r.subsystem || 'Unspecified') || 0) + rowMetricValue(r)));
       const subs = [...subsystemBaseMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
-      replaceChart('drilldownSecondaryChart', { type: 'bar', data: { labels: subs.map(x => x[0]), datasets: simulationActive ? [{ label: 'Baseline', simRole: 'baseline', data: subs.map(x => x[1]), backgroundColor: 'rgba(151,167,194,.24)', borderColor: 'rgba(151,167,194,.48)', borderWidth: 1, borderRadius: 6 }, { label: 'Current', simRole: 'current', data: subs.map(x => subsystemMap.get(x[0]) || 0), backgroundColor: COLORS, borderRadius: 6 }] : [{ label: profile.label, simRole: 'current', data: subs.map(x => subsystemMap.get(x[0]) || 0), backgroundColor: COLORS, borderRadius: 6 }] }, options: { ...baseOptions('subsystem', subs.map(x => x[0]), subs.map(x => ({ entityKey: x[0], displayLabel: x[0], sourceType: 'errorEvents', metric: 'events', parentContext: { path: [] } }))), plugins: { legend: { display: simulationActive, labels: { color: '#c6d3ea' } }, tooltip: simulationActive ? { callbacks: { label: simulationTooltipLabel } } : { callbacks: { label: ctx => `${ctx.parsed.y.toLocaleString()}` } } } } });
+      safeRenderDrilldownChart('drilldownSecondaryChart', () => replaceChart('drilldownSecondaryChart', { type: 'bar', data: { labels: subs.map(x => x[0]), datasets: simulationActive ? [{ label: 'Baseline', simRole: 'baseline', data: subs.map(x => x[1]), backgroundColor: 'rgba(151,167,194,.24)', borderColor: 'rgba(151,167,194,.48)', borderWidth: 1, borderRadius: 6 }, { label: 'Current', simRole: 'current', data: subs.map(x => subsystemMap.get(x[0]) || 0), backgroundColor: COLORS, borderRadius: 6 }] : [{ label: profile.label, simRole: 'current', data: subs.map(x => subsystemMap.get(x[0]) || 0), backgroundColor: COLORS, borderRadius: 6 }] }, options: { ...baseOptions('subsystem', subs.map(x => x[0]), subs.map(x => ({ entityKey: x[0], displayLabel: x[0], sourceType: 'errorEvents', metric: 'events', parentContext: { path: [] } }))), plugins: { legend: { display: simulationActive, labels: { color: '#c6d3ea' } }, tooltip: simulationActive ? { callbacks: { label: simulationTooltipLabel } } : { callbacks: { label: ctx => `${ctx.parsed.y.toLocaleString()}` } } } } }));
 
       const alertMap = new Map(); appliedRows.forEach(r => { const a = r.name !== 'Unspecified' ? r.name : r.alertTitle; alertMap.set(a, (alertMap.get(a) || 0) + rowMetricValue(r)); });
       const alertBaseMap = new Map(); baselineRows.forEach(r => { const a = r.alert || (r.name !== 'Unspecified' ? r.name : r.alertTitle); alertBaseMap.set(a, (alertBaseMap.get(a) || 0) + rowMetricValue(r)); });
@@ -7790,7 +7816,7 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
         <div class="summary-stat span-4"><div class="label">Unplanned</div><div class="value">${formatDuration(unplanned)}</div></div>
         <div class="summary-stat span-4"><div class="label">Total</div><div class="value">${formatDuration(total)}</div></div>`;
       document.getElementById('drilldownCalcBody').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Availability-only source</h4><span class="risk-pill risk-medium">Stable key drilldown</span></div><div class="micro">Rows come directly from scoped availabilityAgg using canonical press key.</div>`;
-      replaceChart('drilldownTopChart', { type: 'doughnut', data: { labels: ['Planned', 'Unplanned'], datasets: [{ data: [planned, unplanned], backgroundColor: ['#51c285', '#f36b63'] }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#c6d3ea' } } } } });
+      safeRenderDrilldownChart('drilldownTopChart', () => replaceChart('drilldownTopChart', { type: 'doughnut', data: { labels: ['Planned', 'Unplanned'], datasets: [{ data: [planned, unplanned], backgroundColor: ['#51c285', '#f36b63'] }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#c6d3ea' } } } } }));
       const subs = aggregateDurationRows(scoped.map(r => ({ subsystem: r.subsystem, durationSeconds: totalDowntimeFromAvailabilityRow(r) })), r => r.subsystem).slice(0, 10);
       const subPayloads = nextDimension ? subs.map(x => ({ entityKey: x.name, displayLabel: x.name, sourceType: 'availabilityNative', metric: 'downtime', parentContext: { path: STATE.drilldown.path || [] } })) : null;
       replaceChart('drilldownTrendChart', { type: 'bar', data: { labels: subs.map(x => x.name), datasets: [{ data: subs.map(x => x.downtime), backgroundColor: COLORS, borderRadius: 6 }] }, options: baseOptions(nextDimension || 'drilldown', subs.map(x => x.name), subPayloads) });
@@ -7802,7 +7828,7 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       });
       const dayLabels = [...daySeries.keys()].sort((a, b) => a.localeCompare(b));
       if (dayLabels.length) {
-        replaceChart('drilldownSecondaryChart', { type: 'line', data: { labels: dayLabels, datasets: [{ data: dayLabels.map(day => daySeries.get(day) || 0), borderColor: '#7b8dff', fill: false, tension: 0.2 }] }, options: baseOptions('drilldown', dayLabels) });
+        safeRenderDrilldownChart('drilldownSecondaryChart', () => replaceChart('drilldownSecondaryChart', { type: 'line', data: { labels: dayLabels, datasets: [{ data: dayLabels.map(day => daySeries.get(day) || 0), borderColor: '#7b8dff', fill: false, tension: 0.2 }] }, options: baseOptions('drilldown', dayLabels) }));
       } else {
         showNoDataChart('drilldownSecondaryChart');
       }
@@ -7876,7 +7902,7 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       document.getElementById('drilldownCalcBody').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Volume split overview</h4><span class="risk-pill risk-medium">Sheets/Flats mode</span></div><div class="micro">Production split, maintenance split, waste split, and trend are calculated directly from volume jobs. Current metric: ${esc(measure)}.</div>`;
       const jobTypeRows = [...jobTypeMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
       const payloads = nextDimension ? jobTypeRows.map(([name]) => ({ entityKey: name, displayLabel: name, sourceType: 'volumeJobs', metric: measure, parentContext: { path: STATE.drilldown.path || [] } })) : null;
-      replaceChart('drilldownTopChart', { type: 'bar', data: { labels: ['Good Sheets', 'Waste Sheets'], datasets: [{ label: 'Sheets', data: [scoped.reduce((a,r)=>a+sanitizeVolumeComponents(r.printedSheets || ((r.productionPrintedSheets || 0) + (r.wastePrintedSheets || 0)), r.productionPrintedSheets, r.wastePrintedSheets).goodSheets,0), scoped.reduce((a,r)=>a+sanitizeVolumeComponents(r.printedSheets || ((r.productionPrintedSheets || 0) + (r.wastePrintedSheets || 0)), r.productionPrintedSheets, r.wastePrintedSheets).wasteSheets,0)], backgroundColor: ['#5f8f76', '#f36b63'], borderRadius: 6 }] }, options: baseOptions('drilldown', ['Good Sheets','Waste Sheets']) });
+      safeRenderDrilldownChart('drilldownTopChart', () => replaceChart('drilldownTopChart', { type: 'bar', data: { labels: ['Good Sheets', 'Waste Sheets'], datasets: [{ label: 'Sheets', data: [scoped.reduce((a,r)=>a+sanitizeVolumeComponents(r.printedSheets || ((r.productionPrintedSheets || 0) + (r.wastePrintedSheets || 0)), r.productionPrintedSheets, r.wastePrintedSheets).goodSheets,0), scoped.reduce((a,r)=>a+sanitizeVolumeComponents(r.printedSheets || ((r.productionPrintedSheets || 0) + (r.wastePrintedSheets || 0)), r.productionPrintedSheets, r.wastePrintedSheets).wasteSheets,0)], backgroundColor: ['#5f8f76', '#f36b63'], borderRadius: 6 }] }, options: baseOptions('drilldown', ['Good Sheets','Waste Sheets']) }));
       const trendLabels = [...dayTrend.keys()].sort((a, b) => a.localeCompare(b));
       replaceChart('drilldownTrendChart', { type: 'line', data: { labels: trendLabels, datasets: [
         { label: 'Waste Ratio %', data: trendLabels.map(d => { const t = dayTrend.get(d); return (t && t.volume > 0) ? ((t.waste / t.volume) * 100) : 0; }), borderColor: '#f0b165', tension: 0.2, yAxisID: 'y' },
@@ -7884,7 +7910,7 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       ] }, options: { ...baseOptions('drilldown', trendLabels), plugins: { legend: { labels: { color: '#c6d3ea' } } }, scales: { x: { ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' } }, y: { beginAtZero: true, ticks: { color: '#c6d3ea', callback: v => `${v}%` }, grid: { color: 'rgba(255,255,255,.04)' } }, y1: { beginAtZero: true, position: 'right', ticks: { color: '#9bc3ff' }, grid: { drawOnChartArea: false } } } } });
       const maintenanceRows = [...maintenanceSplit.entries()];
       const wasteRows = [...wasteSplit.entries()];
-      replaceChart('drilldownSecondaryChart', { type: 'bar', data: { labels: maintenanceRows.map(x => `Maintenance ${x[0]}`), datasets: [{ label: 'Maintenance', data: maintenanceRows.map(x => x[1]), backgroundColor: '#f0b165', borderRadius: 6 }, { label: 'Waste-oriented', data: wasteRows.map(x => x[1]), backgroundColor: '#f36b63', borderRadius: 6 }] }, options: { ...baseOptions('drilldown', maintenanceRows.map(x => x[0])), plugins: { legend: { labels: { color: '#c6d3ea' } } } } });
+      safeRenderDrilldownChart('drilldownSecondaryChart', () => replaceChart('drilldownSecondaryChart', { type: 'bar', data: { labels: maintenanceRows.map(x => `Maintenance ${x[0]}`), datasets: [{ label: 'Maintenance', data: maintenanceRows.map(x => x[1]), backgroundColor: '#f0b165', borderRadius: 6 }, { label: 'Waste-oriented', data: wasteRows.map(x => x[1]), backgroundColor: '#f36b63', borderRadius: 6 }] }, options: { ...baseOptions('drilldown', maintenanceRows.map(x => x[0])), plugins: { legend: { labels: { color: '#c6d3ea' } } } } }));
       const topJobs = [...byJobName.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
       const productionCategoryRows = [
         ['Production', [...productionSplit.values()].reduce((a, v) => a + v, 0)],
@@ -7966,13 +7992,13 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     }));
     if (isSubsystemRootLevel) setDrilldownHeading('drilldownTopHeading', 'Top presses by selected metric');
     if (isSubsystemMachineLevel) setDrilldownHeading('drilldownTopHeading', 'Top errors by selected metric');
-    replaceChart('drilldownTopChart', {
+    safeRenderDrilldownChart('drilldownTopChart', () => replaceChart('drilldownTopChart', {
       type: 'bar',
       data: { labels: topLabels, datasets: [{ data: topValues, backgroundColor: topLabels.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }] },
       options: { ...baseOptions(nextDimension || 'drilldown', topLabels, nextDimension ? topPayloads : null), plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => selectedMetric === 'downtime' ? `Downtime: ${formatDurationCompact(Number(ctx.parsed.y || 0))}` : `Events: ${Number(ctx.parsed.y || 0).toLocaleString()}` } } } },
       valueLabels: selectedMetric === 'downtime' ? { formatter: v => formatDurationCompact(v) } : undefined
-    });
-    applyDrilldownChartHeight('drilldownTopChart', displayedTopRows.length);
+    }));
+    applyDrilldownChartHeight('drilldownTopChart', displayedTopRows.length, 260);
     const trendPoints = analytics.trendPoints.filter(([day]) => !!day);
     if (trendPoints.length) {
       const trendBuckets = trendPoints.map(x => x[0]);
@@ -8002,13 +8028,13 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       showNoDataChart('drilldownTrendChart');
     }
     const secondary = getDisplayRows(isVolume ? analytics.topPresses : (selectedMetric === 'downtime' ? analytics.topAlertsByDuration : (dimension === 'press' ? analytics.topAlerts : analytics.topStates)), chartLimit, showAll);
-    replaceChart('drilldownSecondaryChart', {
+    safeRenderDrilldownChart('drilldownSecondaryChart', () => replaceChart('drilldownSecondaryChart', {
       type: 'bar',
       data: { labels: secondary.map(x => x[0]), datasets: [{ data: secondary.map(x => x[1]), backgroundColor: secondary.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }] },
       options: { ...baseOptions('drilldown', secondary.map(x => x[0])), plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => selectedMetric === 'downtime' ? `Downtime: ${formatDurationCompact(Number(ctx.parsed.y || 0))}` : `Events: ${formatChartValue(Number(ctx.parsed.y || 0))} events` } } } },
       valueLabels: selectedMetric === 'downtime' ? { formatter: v => formatDurationCompact(v) } : undefined
-    });
-    applyDrilldownChartHeight('drilldownSecondaryChart', secondary.length);
+    }));
+    applyDrilldownChartHeight('drilldownSecondaryChart', secondary.length, 260);
     const subsystemRows = analytics.topSubsystems;
     const alertRows = analytics.topAlerts;
     const compositionRows = subsystemRows.length ? subsystemRows : alertRows;
@@ -8048,6 +8074,9 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       }
     }
     const groupedTopRows = compactContributionRows(displayedTopRows, count);
+    console.info('[drilldown-debug]', { drilldownKey, scopeRowsCount: scoped.length, groupedRowsCount: topRows.length, displayRowsCount: displayedTopRows.length, showAll, limit: chartLimit, metric: selectedMetric, firstGroupedRow: topRows[0] || null, firstDisplayRow: displayedTopRows[0] || null });
+    console.info('[drilldown-display-validation]', { drilldownKey, showAll, scopeRowsCount: scoped.length, groupedRowsCount: topRows.length, displayedRowsCount: displayedTopRows.length, limit: chartLimit, validationPassed: displayedTopRows.length > 0 || topRows.length === 0 });
+    if (topRows.length > 0 && displayedTopRows.length === 0) console.warn('[drilldown-display-mismatch]', { drilldownKey, showAll, scopeRowsCount: scoped.length, groupedRowsCount: topRows.length, displayedRowsCount: displayedTopRows.length, limit: chartLimit });
     console.info('[drilldown-display-mode]', { drilldownKey, showAll, totalRows: topRows.length, displayedRows: displayedTopRows.length, limit: chartLimit, metric: selectedMetric });
     if (displayedTopRows.length > topRows.length || (!showAll && displayedTopRows.length > chartLimit)) console.warn('[drilldown-display-mode-mismatch]', { drilldownKey, showAll, totalRows: topRows.length, displayedRows: displayedTopRows.length, limit: chartLimit, metric: selectedMetric });
     document.getElementById('drilldownCalcBody').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Calculation transparency table</h4><span class="impact-chip">Top component contributions</span></div><div class="table-wrap" style="max-height:220px;margin-top:8px;"><table><thead><tr><th>Component</th><th>Events</th><th>Contribution</th></tr></thead><tbody>${groupedTopRows.map(([name,val])=>`<tr><td>${esc(name)}</td><td>${Number(val).toLocaleString()}</td><td>${renderContributionBar(count?((val/count)*100):0)}</td></tr>`).join('')}</tbody></table></div>`;
@@ -9422,7 +9451,9 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     });
     drilldownSearch.addEventListener('input', e => { STATE.drilldown.search = e.target.value || ''; renderDrilldown(); });
     document.getElementById('drilldownShowAllToggle')?.addEventListener('click', () => {
-      STATE.drilldown.showAll = !Boolean(STATE.drilldown.showAll);
+      const drilldownKey = STATE.drilldown?.displayKey || `${STATE.drilldown?.metricKey || STATE.drilldown?.metric || 'events'}:${STATE.drilldown?.dimension || 'unknown'}:${STATE.drilldown?.sourceType || 'default'}`;
+      const currentMode = STATE.drilldownDisplayMode?.[drilldownKey] || 'top';
+      STATE.drilldownDisplayMode[drilldownKey] = currentMode === 'all' ? 'top' : 'all';
       renderDrilldown();
       refreshDrilldownChartsAfterOpen();
     });
