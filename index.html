@@ -1274,7 +1274,7 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
   <section class="drawer-panel">
     <div class="chart-head">
       <h3 id="drilldownTitle">Drilldown <span id="drilldownValidationBadge" class="badge optional hidden" style="vertical-align:middle;margin-left:8px;">Validation pending</span></h3>
-      <div class="chart-tools"><button id="drilldownBack" class="btn secondary">← Back</button><input id="drilldownSearch" placeholder="Search drilldown rows" /><button id="drilldownShowAllToggle" class="btn secondary">Show all</button><button id="drilldownExport" class="btn secondary">Export subset</button><button id="closeDrilldown" class="btn">Close</button></div>
+      <div class="chart-tools"><button id="drilldownBack" class="btn secondary">← Back</button><input id="drilldownSearch" placeholder="Search drilldown rows" /><button id="drilldownExport" class="btn secondary">Export subset</button><button id="closeDrilldown" class="btn">Close</button></div>
     </div>
     <div id="drilldownBreadcrumbs" class="micro"></div>
     <div id="drilldownSummary" class="micro hidden"></div>
@@ -1353,8 +1353,8 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     customerVolumeLookup: new Map(),
     customerVolumeRows: [],
     customerVolumeAllRows: [],
-    drilldown: { dimension: '', value: '', entityKey: '', rows: [], search: '', sort: null, showAll: false, sourceType: '', metric: '', path: [], mode: 'chart', metricKey: '', simulation: { pendingExcluded: new Set(), appliedExcluded: new Set() }, filters: {} },
-    drilldownDisplayMode: {},
+    drilldown: { dimension: '', value: '', entityKey: '', rows: [], search: '', sort: null, sourceType: '', metric: '', path: [], mode: 'chart', metricKey: '', simulation: { pendingExcluded: new Set(), appliedExcluded: new Set() }, filters: {} },
+    drilldownChartDisplayMode: {},
     drilldownStack: [],
     baselineData: null,
     simulationData: null,
@@ -5901,13 +5901,16 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     }
   }
 
-  function updateDrilldownShowAllButton() {
-    const btn = document.getElementById('drilldownShowAllToggle');
-    if (!btn) return;
-    const drilldownKey = STATE.drilldown?.displayKey || 'unknown';
-    const showAll = (STATE.drilldownDisplayMode?.[drilldownKey] || 'top') === 'all';
-    btn.textContent = showAll ? 'Show top' : 'Show all';
-    btn.classList.toggle('active', showAll);
+  function setDrilldownCardControl({ chartId, headingId, drilldownKey, chartKey, totalRows, limit }) {
+    const heading = document.getElementById(headingId);
+    if (!heading) return false;
+    const displayKey = `${drilldownKey}:${chartKey}`;
+    STATE.drilldownChartDisplayMode = STATE.drilldownChartDisplayMode || {};
+    const showAll = STATE.drilldownChartDisplayMode[displayKey] === 'all';
+    const canExpand = Number(totalRows || 0) > Number(limit || 10);
+    const title = heading.textContent || '';
+    heading.innerHTML = `<span>${esc(title)}</span>${canExpand ? `<button type="button" class="mini-action drilldown-mini-toggle ${showAll ? 'active' : ''}" data-drilldown-display-key="${esc(displayKey)}">${showAll ? 'Show top' : 'View all'}</button>` : ''}`;
+    return showAll;
   }
 
   const EXPANDED_DEFAULT_LIMITS = { subsystem: 12, version: 12, alert: 15, customerVolume: 15, availability: 15, pressImpactScatter: 12 };
@@ -7495,10 +7498,13 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     const chartLimit = 10;
     const drilldownKey = buildDrilldownKey(STATE.drilldown);
     STATE.drilldown.displayKey = drilldownKey;
-    if (!STATE.drilldownDisplayMode[drilldownKey]) STATE.drilldownDisplayMode[drilldownKey] = 'top';
-    const showAll = STATE.drilldownDisplayMode[drilldownKey] === 'all';
-    const topN = arr => getDisplayRows(arr, chartLimit, showAll);
-    updateDrilldownShowAllButton();
+    const topN = (chartKey, arr, headingId) => {
+      const groupedRows = Array.isArray(arr) ? arr : [];
+      const showAll = setDrilldownCardControl({ chartId: headingId?.replace('Heading', 'Chart'), headingId, drilldownKey, chartKey, totalRows: groupedRows.length, limit: chartLimit });
+      const displayRows = getChartDisplayRows(groupedRows, chartLimit, showAll);
+      console.info('[drilldown-chart-display]', { drilldownKey, chartKey, showAll, totalRows: groupedRows.length, displayedRows: displayRows.length, limit: chartLimit });
+      return displayRows;
+    };
     const cardsHost = ['drilldownTopChart','drilldownTrendChart','drilldownSecondaryChart','drilldownOpsChart'];
     cardsHost.forEach(id => { const card = document.getElementById(id)?.closest('article'); if (card) { card.classList.remove('hidden'); card.classList.add('span-6'); card.classList.remove('span-12'); } });
     renderDrilldownBreadcrumbs();
@@ -7512,13 +7518,13 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       setCards([{label:'Events', value: rows.length.toLocaleString()}, {label:'Valid event duration', value: formatDuration(durationRows.reduce((a,r)=>a+cleanDurationSeconds(r),0))}, {label:'Presses', value: new Set(rows.map(r=>r.press)).size.toLocaleString()}, {label:'Anomalies excluded', value: (sanity.errors?.durationAnomalyRowsExcluded || 0).toLocaleString()}]);
       setContext('Errors source', 'Events = normalized Errors rows. Duration charts use valid filtered Errors.Duration only.');
       setDrilldownHeading('drilldownTopHeading','Top presses by Events');
-      const top = topN(group(rows, r=>r.press, ()=>1)); renderBar('drilldownTopChart', top.map(x=>x[0]), top.map(x=>x[1]), 'Events', 'number', 'press', top.map(x=>({entityKey:x[0],displayLabel:x[0],sourceType:'errorEvents',metric:'events',parentContext:{path:STATE.drilldown.path||[]}}))); applyDrilldownChartHeight('drilldownTopChart', top.length);
+      const top = topN('top-presses', group(rows, r=>r.press, ()=>1), 'drilldownTopHeading'); renderBar('drilldownTopChart', top.map(x=>x[0]), top.map(x=>x[1]), 'Events', 'number', 'press', top.map(x=>({entityKey:x[0],displayLabel:x[0],sourceType:'errorEvents',metric:'events',parentContext:{path:STATE.drilldown.path||[]}}))); applyDrilldownChartHeight('drilldownTopChart', top.length, 260);
       setDrilldownHeading('drilldownTrendHeading','Events trend over time');
       const trend = byDay(rows, ()=>1); renderLine('drilldownTrendChart', trend.map(x=>x[0]), [{label:'Events', data: trend.map(x=>x[1]), fill:true}], 'number');
       setDrilldownHeading('drilldownSecondaryHeading','Events by Subsystem');
-      const subs = topN(group(rows, r=>r.subsystem, ()=>1)); renderBar('drilldownSecondaryChart', subs.map(x=>x[0]), subs.map(x=>x[1]), 'Events'); applyDrilldownChartHeight('drilldownSecondaryChart', subs.length);
+      const subs = topN('events-by-subsystem', group(rows, r=>r.subsystem, ()=>1), 'drilldownSecondaryHeading'); renderBar('drilldownSecondaryChart', subs.map(x=>x[0]), subs.map(x=>x[1]), 'Events'); applyDrilldownChartHeight('drilldownSecondaryChart', subs.length, 260);
       setDrilldownHeading('drilldownOpsHeading','Valid Event Duration by Press');
-      const dur = topN(group(durationRows, r=>r.press, r=>cleanDurationSeconds(r))); renderBar('drilldownOpsChart', dur.map(x=>x[0]), dur.map(x=>x[1]), 'Valid event duration', 'duration'); applyDrilldownChartHeight('drilldownOpsChart', dur.length);
+      const dur = topN('events-duration-by-press', group(durationRows, r=>r.press, r=>cleanDurationSeconds(r)), 'drilldownOpsHeading'); renderBar('drilldownOpsChart', dur.map(x=>x[0]), dur.map(x=>x[1]), 'Valid event duration', 'duration'); applyDrilldownChartHeight('drilldownOpsChart', dur.length, 260);
       setTable(['Press','Subsystem','Alert','Version','Start','Duration'], rows, r=>[r.press, r.subsystem, r.name !== 'Unspecified' ? r.name : r.alertTitle, r.version, r.startTime?.toISOString?.() || '', formatDuration(cleanDurationSeconds(r))]);
       return true;
     }
@@ -7549,7 +7555,7 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
         return { press, ratio: tracked ? seconds / tracked : 0, seconds, tracked, print: slot.print, maint: slot.maint, na: slot.na, runtime: slot.runtime };
       }).sort((a, b) => metricKey === 'availability' ? (a.ratio - b.ratio) : (b.ratio - a.ratio));
       setDrilldownHeading('drilldownTopHeading', metricKey === 'availability' ? 'Availability % by Press' : 'Total Downtime % by Press');
-      const topPressRatios = topN(availabilityByPress);
+      const topPressRatios = topN('availability-by-press', availabilityByPress, 'drilldownTopHeading');
       renderBar('drilldownTopChart', topPressRatios.map(x=>x.press), topPressRatios.map(x=>x.ratio * 100), metricKey === 'availability' ? 'Availability %' : 'Total Downtime %', 'percent', 'press', topPressRatios.map(x=>({ entityKey:x.press, displayLabel:x.press, sourceType:'availabilityAgg', metric: metricKey, aggregateSeconds:x.seconds, denominatorSeconds:x.tracked, parentContext:{ path: STATE.drilldown.path || [] } })));
       const dayAgg = new Map(); rows.forEach(r=>{ const d=r.day||''; if(!d)return; const slot=dayAgg.get(d)||{runtime:0,print:0,maint:0,na:0}; slot.runtime+=Number(r.runtimeSeconds||0); slot.print+=productionTimeFromAvailabilityRow(r); slot.maint+=Number(r.plannedDowntimeSeconds||r.maintenanceSeconds||0); slot.na+=Number(r.unplannedDowntimeSeconds||r.errorNotAvailableSeconds||0); dayAgg.set(d,slot); });
       const days=[...dayAgg.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
@@ -7561,7 +7567,7 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
         {label:'Total Downtime %',data:days.map(([,v])=>{const den=v.runtime+v.maint+v.na;return den?(v.maint+v.na)/den*100:0;}), aggregateSeconds:days.map(([,v])=>v.maint+v.na), denominatorSeconds:trackedByDay}
       ] : [{label:'Total Downtime %',data:days.map(([,v])=>{const den=v.runtime+v.maint+v.na;return den?(v.maint+v.na)/den*100:0;}), aggregateSeconds:days.map(([,v])=>v.maint+v.na), denominatorSeconds:trackedByDay}], 'percent');
       setDrilldownHeading('drilldownSecondaryHeading', metricKey === 'availability' ? 'Top presses by low Availability %' : 'Maintenance vs Not Available split');
-      if (metricKey === 'availability') { const lowAvail = averageGroup(rows, r=>r.canonicalPress || r.press, r=> { const den = Number((r.runtimeSeconds||0)+totalDowntimeFromAvailabilityRow(r)); return den ? (Number(r.runtimeSeconds||0)/den*100) : 0; }).sort((a,b)=>a[1]-b[1]); renderBar('drilldownSecondaryChart', topN(lowAvail).map(x=>x[0]), topN(lowAvail).map(x=>x[1]), 'Availability %', 'percent'); } else { renderBar('drilldownSecondaryChart', ['Maintenance %','Not Available %'], [maint/totalTracked*100, notAvail/totalTracked*100], 'Downtime split %', 'percent'); }
+      if (metricKey === 'availability') { const lowAvail = averageGroup(rows, r=>r.canonicalPress || r.press, r=> { const den = Number((r.runtimeSeconds||0)+totalDowntimeFromAvailabilityRow(r)); return den ? (Number(r.runtimeSeconds||0)/den*100) : 0; }).sort((a,b)=>a[1]-b[1]); const lowAvailRows = topN('lowest-availability-by-press', lowAvail, 'drilldownSecondaryHeading'); renderBar('drilldownSecondaryChart', lowAvailRows.map(x=>x[0]), lowAvailRows.map(x=>x[1]), 'Availability %', 'percent'); } else { renderBar('drilldownSecondaryChart', ['Maintenance %','Not Available %'], [maint/totalTracked*100, notAvail/totalTracked*100], 'Downtime split %', 'percent'); }
       setDrilldownHeading('drilldownOpsHeading', metricKey === 'availability' ? 'Production Time % by Press' : 'Downtime components breakdown');
       if (metricKey === 'availability') { const pgByPress = availabilityByPress.map(x=>({...x, prodRatio:x.tracked ? x.print/x.tracked : 0})).sort((a,b)=>b.prodRatio-a.prodRatio).slice(0,10); renderBar('drilldownOpsChart', pgByPress.map(x=>x.press), pgByPress.map(x=>x.prodRatio*100), 'Production Time %', 'percent', 'press', pgByPress.map(x=>({entityKey:x.press, displayLabel:x.press, sourceType:'availabilityAgg', metric:'availability', aggregateSeconds:x.print, denominatorSeconds:x.tracked, parentContext:{path:STATE.drilldown.path||[]}}))); } else {
         const denom = totalTracked || 1;
@@ -7590,20 +7596,20 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       setTitle(metricKey === 'mtbf' ? 'MTBF Drilldown' : 'MTTR / Avg Repair Time Drilldown', metricKey === 'mtbf' ? 'Chronological interval analysis from Errors Start/Recovery.' : 'Repair-event duration analysis from Errors.');
       setCards([{label: metricKey.toUpperCase(), value: formatDuration(k[metricKey] || 0)}, {label:'Rows used', value: rows.length.toLocaleString()}, {label:'Presses', value: new Set(rows.map(r=>r.press)).size.toLocaleString()}, {label:'Source', value:'Errors'}]);
       setContext('Errors source', metricKey === 'mtbf' ? 'MTBF = avg(next Start Time - previous Recovery), grouped by press.' : 'MTTR = avg(Duration where Moving2Ready + StoppingOnError.Soft).');
-      const avgPress = topN(averageGroup(rows, r=>r.press, secondsField));
+      const avgPress = topN(`${metricKey}-by-press`, averageGroup(rows, r=>r.press, secondsField), 'drilldownTopHeading');
       setDrilldownHeading('drilldownTopHeading', metricKey === 'mtbf' ? 'MTBF by Press' : 'MTTR by Press');
       renderBar('drilldownTopChart', avgPress.map(x=>x[0]), avgPress.map(x=>x[1]), metricKey.toUpperCase(), 'duration', 'press', avgPress.map(x=>({entityKey:x[0],displayLabel:x[0],sourceType:'errorEvents',metric:metricKey,parentContext:{path:STATE.drilldown.path||[]}})));
       const trend = byDay(rows, secondsField, true);
       setDrilldownHeading('drilldownTrendHeading', metricKey === 'mtbf' ? 'MTBF trend' : 'MTTR trend');
       renderLine('drilldownTrendChart', trend.map(x=>x[0]), [{label:metricKey.toUpperCase(), data:trend.map(x=>x[1]), fill:true}], 'duration');
       setDrilldownHeading('drilldownSecondaryHeading', metricKey === 'mtbf' ? 'Interval count by Press' : 'Repair event count by Press');
-      const counts = topN(group(rows, r=>r.press, ()=>1)); renderBar('drilldownSecondaryChart', counts.map(x=>x[0]), counts.map(x=>x[1]), 'Count');
+      const counts = topN(`${metricKey}-count-by-press`, group(rows, r=>r.press, ()=>1), 'drilldownSecondaryHeading'); renderBar('drilldownSecondaryChart', counts.map(x=>x[0]), counts.map(x=>x[1]), 'Count');
       setDrilldownHeading('drilldownOpsHeading', metricKey === 'mtbf' ? 'Lowest MTBF by Press' : 'Top Subsystems / Alerts by Repair Duration');
       if (metricKey === 'mtbf') {
         const lowMtbf = averageGroup(rows, r=>r.press, secondsField).sort((a,b)=>a[1]-b[1]).slice(0,10);
         renderBar('drilldownOpsChart', lowMtbf.map(x=>x[0]), lowMtbf.map(x=>x[1]), 'MTBF', 'duration');
       } else {
-        const subs = topN(group(rows, r=>r.subsystem || r.alert || 'Unspecified', secondsField));
+        const subs = topN(`${metricKey}-by-subsystem`, group(rows, r=>r.subsystem || r.alert || 'Unspecified', secondsField), 'drilldownOpsHeading');
         renderBar('drilldownOpsChart', subs.map(x=>x[0]), subs.map(x=>x[1]), 'Repair duration', 'duration');
       }
       setTable(['Press','Day','Subsystem','Alert','Start','Recovery','Value'], rows, r=>[r.press, r.day, r.subsystem, r.alert || (r.raw?.name !== 'Unspecified' ? r.raw?.name : r.raw?.alertTitle), r.raw?.startTime?.toISOString?.() || r.startTime?.toISOString?.() || '', r.raw?.recoveryTime?.toISOString?.() || r.recoveryTime?.toISOString?.() || '', formatDuration(secondsField(r))]);
@@ -7626,7 +7632,7 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       const trend = byDay(rows, r=>metricKey==='wasteRatio'?computeWasteRatio(Number(r.wastePrintedFlats||0), Number(r.totalPrintedFlats||r.printedFlats||0))*100:Number(r.goodPrintedFlats||0));
       setDrilldownHeading('drilldownTrendHeading', metricKey === 'wasteRatio' ? 'Waste Ratio trend' : 'Good Production trend');
       renderLine('drilldownTrendChart', trend.map(x=>x[0]), [{label: metricKey==='wasteRatio'?'Waste Ratio %':'Good Flats', data:trend.map(x=>x[1]), fill:true, borderColor: metricKey==='wasteRatio'?'#f0b165':'#57c98a'}], metricKey==='wasteRatio'?'percent':'number');
-      const byPress = topN(group(rows, r=>r.press||r.canonicalPress, r=>metricKey==='wasteRatio'?Number(r.wastePrintedFlats||0):Number(r.totalPrintedFlats||r.printedFlats||0)));
+      const byPress = topN(`${metricKey}-by-press`, group(rows, r=>r.press||r.canonicalPress, r=>metricKey==='wasteRatio'?Number(r.wastePrintedFlats||0):Number(r.totalPrintedFlats||r.printedFlats||0)), 'drilldownTopHeading');
       setDrilldownHeading('drilldownSecondaryHeading', metricKey === 'wasteRatio' ? 'Waste by Press' : 'Production by Press');
       renderBar('drilldownSecondaryChart', byPress.map(x=>x[0]), byPress.map(x=>x[1]), metricKey === 'wasteRatio' ? 'Waste Flats' : 'Printed Flats', 'number', 'press', byPress.map(x=>({entityKey:x[0],displayLabel:x[0],sourceType:'volumeJobs',metric:metricKey,parentContext:{path:STATE.drilldown.path||[]}})));
       setDrilldownHeading('drilldownOpsHeading', 'Good vs Waste');
@@ -7978,12 +7984,14 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       : (isSubsystemRootLevel ? 'press' : (isSubsystemMachineLevel ? 'alert' : getNextErrorDrillDimension(dimension)));
     const drilldownDefaultLimit = 10;
     const chartLimit = drilldownDefaultLimit;
-    STATE.drilldownDisplayMode = STATE.drilldownDisplayMode || {};
     const drilldownKey = buildDrilldownKey(STATE.drilldown);
     STATE.drilldown.displayKey = drilldownKey;
-    if (!STATE.drilldownDisplayMode[drilldownKey]) STATE.drilldownDisplayMode[drilldownKey] = 'top';
-    const showAll = STATE.drilldownDisplayMode[drilldownKey] === 'all';
-    updateDrilldownShowAllButton();
+    const getChartRowsForDisplay = (chartKey, groupedRows, headingId) => {
+      const showAll = setDrilldownCardControl({ headingId, drilldownKey, chartKey, totalRows: groupedRows.length, limit: chartLimit });
+      const displayRows = getChartDisplayRows(groupedRows, chartLimit, showAll);
+      console.info('[drilldown-chart-display]', { drilldownKey, chartKey, showAll, totalRows: groupedRows.length, displayedRows: displayRows.length, limit: chartLimit });
+      return { showAll, displayRows };
+    };
 
     const topRows = sourceType === 'versionPerPress'
       ? (() => {
@@ -7996,7 +8004,8 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
         return [...m.entries()].sort((a, b) => b[1] - a[1]);
       })()
       : (isSubsystemRootLevel ? analytics.topPresses : (dimension === 'subsystem' ? analytics.topAlerts : analytics.topSubsystems));
-    let displayedTopRows = getDrilldownDisplayRows(topRows, chartLimit, showAll);
+    const { showAll, displayRows: displayedTopRowsInitial } = getChartRowsForDisplay('top-grouped', topRows, 'drilldownTopHeading');
+    let displayedTopRows = displayedTopRowsInitial;
     if (topRows.length > 0 && displayedTopRows.length === 0) {
       console.warn('[drilldown-display-empty-fallback]', { drilldownKey, groupedRowsCount: topRows.length, showAll, limit: chartLimit });
       displayedTopRows = topRows.slice(0, chartLimit);
@@ -8048,9 +8057,10 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       showNoDataChart('drilldownTrendChart');
     }
     const secondaryGroupedRows = isVolume ? analytics.topPresses : (selectedMetric === 'downtime' ? analytics.topAlertsByDuration : (dimension === 'press' ? analytics.topAlerts : analytics.topStates));
-    let secondary = getDrilldownDisplayRows(secondaryGroupedRows, chartLimit, showAll);
+    const { showAll: secondaryShowAll, displayRows: secondaryInitialRows } = getChartRowsForDisplay('secondary-grouped', secondaryGroupedRows, 'drilldownSecondaryHeading');
+    let secondary = secondaryInitialRows;
     if (secondaryGroupedRows.length > 0 && secondary.length === 0) {
-      console.warn('[drilldown-display-empty-fallback]', { drilldownKey, groupedRowsCount: secondaryGroupedRows.length, showAll, limit: chartLimit });
+      console.warn('[drilldown-display-empty-fallback]', { drilldownKey, groupedRowsCount: secondaryGroupedRows.length, showAll: secondaryShowAll, limit: chartLimit });
       secondary = secondaryGroupedRows.slice(0, chartLimit);
     }
     safeRenderDrilldownChart('drilldownSecondaryChart', () => replaceChart('drilldownSecondaryChart', {
@@ -9475,10 +9485,12 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       }
     });
     drilldownSearch.addEventListener('input', e => { STATE.drilldown.search = e.target.value || ''; renderDrilldown(); });
-    document.getElementById('drilldownShowAllToggle')?.addEventListener('click', () => {
-      const drilldownKey = STATE.drilldown?.displayKey || buildDrilldownKey(STATE.drilldown);
-      const currentMode = STATE.drilldownDisplayMode?.[drilldownKey] || 'top';
-      STATE.drilldownDisplayMode[drilldownKey] = currentMode === 'all' ? 'top' : 'all';
+    document.getElementById('drilldownChartsContainer')?.addEventListener('click', e => {
+      const btn = e.target.closest('[data-drilldown-display-key]');
+      if (!btn) return;
+      const key = btn.getAttribute('data-drilldown-display-key');
+      STATE.drilldownChartDisplayMode = STATE.drilldownChartDisplayMode || {};
+      STATE.drilldownChartDisplayMode[key] = STATE.drilldownChartDisplayMode[key] === 'all' ? 'top' : 'all';
       renderDrilldown();
       refreshDrilldownChartsAfterOpen();
     });
