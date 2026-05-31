@@ -99,6 +99,26 @@
     .kpi-sub { margin-top:3px; color:#a7b6cf; font-size:.7rem; line-height:1.3; }
     .d { display:none; }
     .filters { display:flex; gap:7px; flex-wrap:wrap; margin-bottom:8px; }
+    .multi-select{position:relative;min-width:0;}
+    .multi-select-trigger{width:100%;min-height:39px;display:flex;align-items:center;gap:8px;justify-content:space-between;border:1px solid var(--border);border-radius:10px;background:var(--panel-soft);color:var(--text);padding:8px 10px;cursor:pointer;font-weight:650;text-align:left;}
+    .multi-select-trigger:hover,.multi-select.open .multi-select-trigger{background:#24324a;border-color:rgba(143,211,255,.38);}
+    .multi-select-trigger:focus-visible,.multi-select-search:focus-visible{outline:2px solid rgba(143,211,255,.75);outline-offset:2px;}
+    .multi-select-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .multi-select-count{font-size:.68rem;color:#cfe2ff;border:1px solid rgba(143,211,255,.24);background:rgba(143,211,255,.08);border-radius:999px;padding:2px 6px;white-space:nowrap;}
+    .multi-select-caret{color:var(--muted);}
+    .multi-select-panel{position:absolute;z-index:180;top:calc(100% + 6px);left:0;width:min(320px,90vw);display:none;border:1px solid rgba(143,211,255,.22);border-radius:12px;background:linear-gradient(180deg,rgba(18,28,44,.98),rgba(11,18,31,.98));box-shadow:0 18px 48px rgba(0,0,0,.48);padding:8px;}
+    .multi-select.open .multi-select-panel{display:block;}
+    .multi-select-actions{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px;}
+    .multi-select-link{border:0;background:transparent;color:#9ed8ff;font-weight:700;font-size:.76rem;cursor:pointer;padding:4px 6px;border-radius:7px;}
+    .multi-select-link:hover{background:rgba(143,211,255,.10);}
+    .multi-select-search{width:100%;margin-bottom:7px;padding:7px 9px;border-radius:8px;font-size:.8rem;}
+    .multi-select-options{max-height:220px;overflow:auto;display:grid;gap:3px;padding-right:2px;}
+    .multi-select-option{display:flex;align-items:center;gap:8px;border:1px solid transparent;border-radius:8px;padding:6px 7px;color:#dbe7f7;font-size:.82rem;cursor:pointer;user-select:none;}
+    .multi-select-option:hover{background:rgba(255,255,255,.06);}
+    .multi-select-option.selected{background:rgba(123,141,255,.13);border-color:rgba(123,141,255,.28);}
+    .multi-select-option input{width:14px;height:14px;margin:0;accent-color:#7b8dff;}
+    .multi-select-empty{color:var(--muted);font-size:.8rem;padding:8px;}
+
     .grid { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:8px; }
     .span-3{grid-column:span 3}.span-4{grid-column:span 4}.span-6{grid-column:span 6}.span-8{grid-column:span 8}.span-12{grid-column:span 12}
     .card { padding:10px; }
@@ -1175,9 +1195,9 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
         <section id="dashboardStatusPanel" class="dashboard-status hidden"></section>
 
         <section class="filters command-filters">
-          <select id="pressFilter" class="select"><option value="all">All presses</option></select>
-          <select id="subsystemFilter" class="select"><option value="all">All subsystems</option></select>
-          <select id="versionFilter" class="select"><option value="all">All software versions</option></select>
+          <div id="pressFilter" class="multi-select" data-filter-key="presses" data-filter-label="presses"></div>
+          <div id="subsystemFilter" class="multi-select" data-filter-key="subsystems" data-filter-label="subsystems"></div>
+          <div id="versionFilter" class="multi-select" data-filter-key="versions" data-filter-label="software versions"></div>
           <input id="startDateFilter" type="date" title="Start date" />
           <input id="endDateFilter" type="date" title="End date" />
           <input id="searchFilter" placeholder="Search press, alert, subsystem, version" />
@@ -1325,6 +1345,8 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
     volumeModel: null,
     filtered: [],
     filteredErrors: [],
+    filters: { presses: [], subsystems: [], versions: [], dateStart: '', dateEnd: '', search: '' },
+    filterOptions: { presses: [], subsystems: [], versions: [] },
     kpis: null,
     mode: '',
     analysisRunning: false,
@@ -3305,13 +3327,18 @@ function extractPressCodeFromAvailabilityId(rawId) {
   }
 
   function currentFilterValues() {
+    normalizeMultiFilterState();
+    pruneInvalidMultiFilterSelections();
+    STATE.filters.dateStart = startDateFilter.value;
+    STATE.filters.dateEnd = endDateFilter.value;
+    STATE.filters.search = searchFilter.value.trim().toLowerCase();
     return {
-      press: pressFilter.value,
-      subsystem: subsystemFilter.value,
-      version: versionFilter.value,
-      startDay: startDateFilter.value,
-      endDay: endDateFilter.value,
-      query: searchFilter.value.trim().toLowerCase(),
+      presses: normalizeFilterSelection(STATE.filters.presses),
+      subsystems: normalizeFilterSelection(STATE.filters.subsystems),
+      versions: normalizeFilterSelection(STATE.filters.versions),
+      startDay: STATE.filters.dateStart,
+      endDay: STATE.filters.dateEnd,
+      query: STATE.filters.search,
     };
   }
 
@@ -3343,9 +3370,10 @@ function extractPressCodeFromAvailabilityId(rawId) {
     const state = parseAnalysisStateFromHash();
     if (!state) return false;
     const filters = state.filters || {};
-    if (filters.press != null) pressFilter.value = filters.press;
-    if (filters.subsystem != null) subsystemFilter.value = filters.subsystem;
-    if (filters.version != null) versionFilter.value = filters.version;
+    if (filters.presses != null || filters.press != null) STATE.filters.presses = normalizeFilterSelection(filters.presses ?? filters.press);
+    if (filters.subsystems != null || filters.subsystem != null) STATE.filters.subsystems = normalizeFilterSelection(filters.subsystems ?? filters.subsystem);
+    if (filters.versions != null || filters.version != null) STATE.filters.versions = normalizeFilterSelection(filters.versions ?? filters.version);
+    renderAllMultiFilters();
     if (filters.startDay != null) startDateFilter.value = filters.startDay;
     if (filters.endDay != null) endDateFilter.value = filters.endDay;
     if (filters.query != null) searchFilter.value = filters.query;
@@ -3378,9 +3406,9 @@ function extractPressCodeFromAvailabilityId(rawId) {
     const press = options.pressOf ? options.pressOf(row) : (row.canonicalPress || row.press);
     const subsystem = options.subsystemOf ? options.subsystemOf(row) : row.subsystem;
     const version = options.versionOf ? options.versionOf(row) : row.version;
-    return (filterValues.press === 'all' || press === filterValues.press) &&
-      (filterValues.subsystem === 'all' || subsystem === filterValues.subsystem) &&
-      (filterValues.version === 'all' || version === filterValues.version) &&
+    return matchesMulti(press, filterValues.presses) &&
+      matchesMulti(subsystem, filterValues.subsystems) &&
+      matchesMulti(version, filterValues.versions) &&
       (!filterValues.startDay || (day && day >= filterValues.startDay)) &&
       (!filterValues.endDay || (day && day <= filterValues.endDay)) &&
       (!filterValues.query || text.includes(filterValues.query));
@@ -3402,8 +3430,8 @@ function extractPressCodeFromAvailabilityId(rawId) {
       const day = r.day || toDayBucket(r.printStart || r.date || r.startTime);
       const press = r.canonicalPress || 'Unspecified';
       const subsystem = r.subsystem || 'Unspecified';
-      return (filterValues.press === 'all' || press === filterValues.press) &&
-        (filterValues.subsystem === 'all' || subsystem === filterValues.subsystem) &&
+      return matchesMulti(press, filterValues.presses) &&
+        matchesMulti(subsystem, filterValues.subsystems) &&
         (!filterValues.startDay || (day && day >= filterValues.startDay)) &&
         (!filterValues.endDay || (day && day <= filterValues.endDay)) &&
         (!filterValues.query || text.includes(filterValues.query));
@@ -3415,7 +3443,7 @@ function extractPressCodeFromAvailabilityId(rawId) {
       const text = `${r.canonicalPress} ${r.canonicalModel} ${r.customer} ${r.site}`.toLowerCase();
       const day = r.day || toDayBucket(r.printStart || r.date || r.startTime);
       const press = r.canonicalPress || 'Unspecified';
-      return (filterValues.press === 'all' || press === filterValues.press) &&
+      return matchesMulti(press, filterValues.presses) &&
         (!filterValues.startDay || (day && day >= filterValues.startDay)) &&
         (!filterValues.endDay || (day && day <= filterValues.endDay)) &&
         (!filterValues.query || text.includes(filterValues.query));
@@ -6562,11 +6590,176 @@ function renderPressValidationNote(diagnostics) {
     table.innerHTML = `<thead><tr><th>Press</th><th>Subsystem</th><th>Alert Name</th><th>Version</th><th>Start</th><th>Duration</th><th>Prod Vol</th><th>Avail Context</th></tr></thead><tbody>${rows.slice(0, 800).map(r => `<tr><td>${esc(r.press)}</td><td>${esc(r.subsystem)}</td><td>${esc(r.name !== 'Unspecified' ? r.name : r.alertTitle)}</td><td>${esc(r.version || 'Version unavailable')}</td><td>${esc(r.startTime?.toISOString() || '')}</td><td>${esc(formatDuration(cleanDurationSeconds(r)))}</td><td>${esc(r?.volume?.productionVolume || 0)}</td><td>${esc(`U:${formatDuration(r?.availability?.unplannedDowntimeSeconds || 0)} P:${formatDuration(r?.availability?.plannedDowntimeSeconds || 0)} (${r?.mergeContext?.availabilityKeyUsed || 'none'})`)}</td></tr>`).join('')}</tbody>`;
   }
 
-  function populateFilter(id, values, label) {
+  const MULTI_FILTER_CONFIG = {
+    pressFilter: { key: 'presses', label: 'presses', allLabel: 'All presses' },
+    subsystemFilter: { key: 'subsystems', label: 'subsystems', allLabel: 'All subsystems' },
+    versionFilter: { key: 'versions', label: 'software versions', allLabel: 'All software versions' },
+  };
+
+  function normalizeFilterValue(value) {
+    return String(value ?? '').trim();
+  }
+
+  function normalizeFilterSelection(value) {
+    const raw = Array.isArray(value) ? value : (value instanceof Set ? [...value] : (value == null ? [] : [value]));
+    return [...new Set(raw.map(normalizeFilterValue).filter(v => v && v.toLowerCase() !== 'all'))];
+  }
+
+  function normalizeMultiFilterState() {
+    STATE.filters = STATE.filters || {};
+    STATE.filters.presses = normalizeFilterSelection(STATE.filters.presses ?? STATE.filters.press);
+    STATE.filters.subsystems = normalizeFilterSelection(STATE.filters.subsystems ?? STATE.filters.subsystem);
+    STATE.filters.versions = normalizeFilterSelection(STATE.filters.versions ?? STATE.filters.version);
+    STATE.filters.dateStart = STATE.filters.dateStart || '';
+    STATE.filters.dateEnd = STATE.filters.dateEnd || '';
+    STATE.filters.search = STATE.filters.search || '';
+  }
+
+  function pruneInvalidMultiFilterSelections() {
+    normalizeMultiFilterState();
+    ['presses', 'subsystems', 'versions'].forEach(key => {
+      const options = STATE.filterOptions?.[key] || [];
+      if (!options.length) return;
+      const previous = normalizeFilterSelection(STATE.filters[key]);
+      const next = previous.filter(v => options.includes(v));
+      if (next.length !== previous.length) {
+        console.warn('[multi-filter-invalid-selection]', {
+          filter: key,
+          removed: previous.filter(v => !options.includes(v)),
+          validOptionsCount: options.length
+        });
+        STATE.filters[key] = next;
+      }
+    });
+  }
+
+  function matchesMulti(value, selectedValues) {
+    if (!selectedValues || selectedValues.length === 0) return true;
+    return selectedValues.includes(normalizeFilterValue(value));
+  }
+
+  function getMultiFilterLabel(key, label, allLabel) {
+    const options = STATE.filterOptions?.[key] || [];
+    const selected = normalizeFilterSelection(STATE.filters?.[key]).filter(v => options.includes(v));
+    if (!selected.length || (options.length && selected.length === options.length)) return allLabel;
+    if (selected.length <= 2) return selected.join(', ');
+    return `${selected.length} ${label} selected`;
+  }
+
+  function closeAllMultiSelects(except = null) {
+    document.querySelectorAll('.multi-select.open').forEach(el => {
+      if (el !== except) el.classList.remove('open');
+    });
+  }
+
+  function renderMultiFilter(id) {
+    normalizeMultiFilterState();
     const el = document.getElementById(id);
-    const prev = el.value;
-    el.innerHTML = `<option value="all">All ${label}</option>` + values.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
-    if (values.includes(prev)) el.value = prev;
+    const cfg = MULTI_FILTER_CONFIG[id];
+    if (!el || !cfg) return;
+    const options = STATE.filterOptions?.[cfg.key] || [];
+    const selected = new Set(normalizeFilterSelection(STATE.filters[cfg.key]).filter(v => options.includes(v)));
+    const isAllSelection = !selected.size || (options.length && selected.size === options.length);
+    const label = getMultiFilterLabel(cfg.key, cfg.label, cfg.allLabel);
+    const searchId = `${id}Search`;
+    el.className = `multi-select${el.classList.contains('open') ? ' open' : ''}`;
+    el.dataset.filterKey = cfg.key;
+    el.innerHTML = `
+      <button type="button" class="multi-select-trigger" aria-haspopup="listbox" aria-expanded="${el.classList.contains('open') ? 'true' : 'false'}">
+        <span class="multi-select-label">${esc(label)}</span>
+        <span class="multi-select-count">${isAllSelection ? 'All' : esc(String(selected.size))}</span>
+        <span class="multi-select-caret">▾</span>
+      </button>
+      <div class="multi-select-panel" role="listbox" aria-label="${esc(cfg.allLabel)}" tabindex="-1">
+        <div class="multi-select-actions">
+          <button type="button" class="multi-select-link" data-multi-action="select-all">Select all</button>
+          <button type="button" class="multi-select-link" data-multi-action="clear">Clear</button>
+        </div>
+        <input id="${searchId}" class="multi-select-search" type="search" placeholder="Search ${esc(cfg.label)}" autocomplete="off" />
+        <div class="multi-select-options">
+          ${options.length ? options.map(v => {
+            const checked = selected.has(v) ? ' checked' : '';
+            return `<label class="multi-select-option${checked ? ' selected' : ''}" data-option-label="${esc(String(v).toLowerCase())}"><input type="checkbox" value="${esc(v)}"${checked} /> <span>${esc(v)}</span></label>`;
+          }).join('') : `<div class="multi-select-empty">No ${esc(cfg.label)} available</div>`}
+        </div>
+      </div>`;
+  }
+
+  function renderAllMultiFilters() {
+    Object.keys(MULTI_FILTER_CONFIG).forEach(renderMultiFilter);
+  }
+
+  function populateFilter(id, values, label) {
+    normalizeMultiFilterState();
+    const cfg = MULTI_FILTER_CONFIG[id];
+    if (!cfg) return;
+    const sortedValues = [...new Set((values || []).map(normalizeFilterValue).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+    STATE.filterOptions = STATE.filterOptions || { presses: [], subsystems: [], versions: [] };
+    STATE.filterOptions[cfg.key] = sortedValues;
+    const previous = normalizeFilterSelection(STATE.filters[cfg.key]);
+    const next = previous.filter(v => sortedValues.includes(v));
+    if (next.length !== previous.length) {
+      const removed = previous.filter(v => !sortedValues.includes(v));
+      console.warn('[multi-filter-invalid-selection]', { filter: cfg.key, removed, validOptionsCount: sortedValues.length });
+      STATE.filters[cfg.key] = next;
+    } else {
+      STATE.filters[cfg.key] = previous;
+    }
+    renderMultiFilter(id);
+  }
+
+  function bindMultiFilterDropdowns(scheduleRender) {
+    document.querySelectorAll('.multi-select').forEach(el => {
+      el.addEventListener('click', e => {
+        const trigger = e.target.closest('.multi-select-trigger');
+        if (trigger) {
+          e.preventDefault();
+          const willOpen = !el.classList.contains('open');
+          closeAllMultiSelects(el);
+          el.classList.toggle('open', willOpen);
+          trigger.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+          return;
+        }
+        const cfg = MULTI_FILTER_CONFIG[el.id];
+        if (!cfg) return;
+        const action = e.target.closest('[data-multi-action]')?.dataset.multiAction;
+        if (action) {
+          e.preventDefault();
+          STATE.filters[cfg.key] = action === 'select-all' ? [...(STATE.filterOptions?.[cfg.key] || [])] : [];
+          renderMultiFilter(el.id);
+          el.classList.add('open');
+          scheduleRender();
+          return;
+        }
+      });
+      el.addEventListener('change', e => {
+        const checkbox = e.target.closest('input[type="checkbox"]');
+        if (!checkbox) return;
+        const cfg = MULTI_FILTER_CONFIG[el.id];
+        const selected = new Set(normalizeFilterSelection(STATE.filters[cfg.key]));
+        const value = normalizeFilterValue(checkbox.value);
+        if (checkbox.checked) selected.add(value);
+        else selected.delete(value);
+        STATE.filters[cfg.key] = [...selected];
+        renderMultiFilter(el.id);
+        el.classList.add('open');
+        scheduleRender();
+      });
+      el.addEventListener('input', e => {
+        if (!e.target.matches('.multi-select-search')) return;
+        const query = e.target.value.trim().toLowerCase();
+        el.querySelectorAll('.multi-select-option').forEach(option => {
+          option.classList.toggle('hidden', query && !option.dataset.optionLabel.includes(query));
+        });
+      });
+    });
+    document.addEventListener('click', e => {
+      if (!e.target.closest?.('.multi-select')) closeAllMultiSelects();
+    });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') closeAllMultiSelects();
+    });
   }
 
   function filteredRows() {
@@ -8373,6 +8566,12 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       volumeAggCount: sourceScope.volumeAgg?.length || 0,
       mergedRowsCount: sourceScope.mergedRows?.length || 0,
     });
+    console.info('[multi-filter-state]', {
+      presses: STATE.filters.presses,
+      subsystems: STATE.filters.subsystems,
+      versions: STATE.filters.versions,
+      filteredRowsCount: STATE.filtered.length
+    });
     if (STATE.filtered.length > 0 && sourceScope.errorsAgg.length === 0 && sourceScope.availabilityAgg.length === 0 && sourceScope.volumeAgg.length === 0) {
       console.warn('[scope-debug] filtered events exist but scoped source aggregates are empty. Check merge key construction and normalization.');
     }
@@ -9456,7 +9655,8 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       openKpiFromEventTarget(card);
     });
 
-    ['pressFilter', 'subsystemFilter', 'versionFilter', 'startDateFilter', 'endDateFilter'].forEach(id => document.getElementById(id).addEventListener('change', scheduleRender));
+    bindMultiFilterDropdowns(scheduleRender);
+    ['startDateFilter', 'endDateFilter'].forEach(id => document.getElementById(id).addEventListener('change', scheduleRender));
     searchFilter.addEventListener('input', scheduleRender);
     const customerVolumeUnitToggle = document.getElementById('customerVolumeUnitToggle');
     const customerVolumeShowWaste = document.getElementById('customerVolumeShowWaste');
