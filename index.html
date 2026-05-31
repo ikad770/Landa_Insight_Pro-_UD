@@ -1278,10 +1278,10 @@ body.command-theme{background:radial-gradient(circle at 82% 0%,rgba(31,122,200,.
       <h3 style="margin:0;">Landa Insight<span class="brand-plus">Pro+</span> Summary</h3>
       <button id="closeSummaryBtn" class="btn">Close</button>
     </div>
-    <p class="micro">Summary actions use the current validated dashboard scope.</p>
+    <p class="micro">Summary actions use the current validated dashboard scope. Outlook may open plain text. Use Copy Summary for formatted content.</p>
     <div class="summary-actions">
       <button id="summaryPreviewBtn" class="btn secondary">Preview Email</button>
-      <button id="summaryCopyBtn" class="btn secondary">Copy Email Summary</button>
+      <button id="summaryCopyBtn" class="btn secondary">Copy Summary</button>
       <button id="summaryExportBtn" class="btn primary">Open in Outlook</button>
     </div>
     <div id="summaryScopeMeta" class="summary-scope"></div>
@@ -4412,90 +4412,289 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
   }
 
 
-  function defineExecutiveSummarySections() {
+  function summaryArrayLabel(values = [], fallback = 'All') {
+    const arr = normalizeFilterSelection(values).filter(Boolean);
+    return arr.length ? arr.join(', ') : fallback;
+  }
+
+  function summaryDataValidationStatus(scope = {}) {
+    const report = scope.dataSanityReport || STATE.dataSanityReport || null;
+    if (!report) return 'Validated source data';
+    const invalid = Number(report.errors?.invalidDurationRowsExcluded || 0);
+    const anomalies = Number(report.errors?.durationAnomalyRowsExcluded || 0);
+    if (invalid || anomalies) return `Validated with warnings (${invalid + anomalies} rows excluded from duration calculations)`;
+    return 'Validated source data';
+  }
+
+  function summarySourcesUsed(scope = {}) {
+    const sources = [];
+    const errors = (scope.filteredErrorEventsNative || scope.errorsAgg || []).length;
+    const availability = (scope.filteredAvailabilityRowsNative || scope.availabilityAgg || []).length;
+    const volume = (scope.filteredVolumeRowsNative || scope.volumeAgg || []).length;
+    if (errors) sources.push(`Errors (${errors.toLocaleString()} rows)`);
+    if (availability) sources.push(`Availability (${availability.toLocaleString()} rows)`);
+    if (volume) sources.push(`Print Volume (${volume.toLocaleString()} rows)`);
+    return sources.length ? sources : ['No scoped source rows'];
+  }
+
+  function summaryScopeLabel(filters = {}) {
+    const parts = [
+      `Presses: ${summaryArrayLabel(filters.presses)}`,
+      `Subsystems: ${summaryArrayLabel(filters.subsystems)}`,
+      `Versions: ${summaryArrayLabel(filters.versions)}`
+    ];
+    if (filters.startDay || filters.endDay) parts.push(`Dates: ${filters.startDay || 'start'} to ${filters.endDay || 'end'}`);
+    if (filters.query) parts.push(`Search: ${filters.query}`);
+    return parts.join(' • ');
+  }
+
+  function kpiStatus(key, rawValue) {
+    const n = Number(rawValue || 0);
+    if (key === 'availability') return rawValue == null ? 'warning' : (n < 0.85 ? 'critical' : (n < 0.92 ? 'warning' : 'stable'));
+    if (key === 'wasteRatio') return n >= 0.10 ? 'critical' : (n >= 0.05 ? 'warning' : 'stable');
+    if (key === 'downtime') return n > 0 ? 'warning' : 'stable';
+    return 'stable';
+  }
+
+  function machineSummaryStatus(row) {
+    const availability = Number(row.availabilityRaw ?? 0);
+    const downtime = Number(row.downtimeRaw || 0);
+    if ((row.availabilityRaw != null && availability < 0.85) || downtime >= 24 * 3600) return 'Critical';
+    if ((row.availabilityRaw != null && availability < 0.92) || downtime > 0) return 'Warning';
+    return 'Stable';
+  }
+
+  function buildPressMachineSummaries(scope = {}, filters = {}) {
+    const errorRows = scope.filteredErrorEventsNative || [];
+    const errorsAgg = scope.errorsAgg || [];
+    const availabilityAgg = scope.availabilityAgg || [];
+    const selectedPresses = normalizeFilterSelection(filters.presses).filter(Boolean);
+    const pressNames = new Set(selectedPresses);
+    errorsAgg.forEach(r => pressNames.add(r.canonicalPress || r.press || 'Unspecified'));
+    availabilityAgg.forEach(r => pressNames.add(r.canonicalPress || r.press || 'Unspecified'));
+    const rows = [...pressNames].map(press => {
+      const pressErrorAgg = errorsAgg.filter(r => (r.canonicalPress || r.press || 'Unspecified') === press);
+      const pressAvailability = availabilityAgg.filter(r => (r.canonicalPress || r.press || 'Unspecified') === press);
+      const pressEvents = pressErrorAgg.reduce((sum, r) => sum + Number(r.totalEvents || 0), 0);
+      const downtimeSeconds = pressAvailability.reduce((sum, r) => sum + Number(totalDowntimeFromAvailabilityRow(r) || 0), 0);
+      const runtimeSeconds = pressAvailability.reduce((sum, r) => sum + Number(r.runtimeSeconds || 0), 0);
+      const availabilityRaw = (runtimeSeconds + downtimeSeconds) > 0 ? runtimeSeconds / (runtimeSeconds + downtimeSeconds) : null;
+      const totalErrorDuration = pressErrorAgg.reduce((sum, r) => sum + Number(r.totalErrorDurationSeconds || 0), 0);
+      const pressMttr = pressEvents > 0 ? totalErrorDuration / pressEvents : null;
+      const pressMtbf = pressEvents > 0 ? runtimeSeconds / pressEvents : null;
+      const nativePressRows = errorRows.filter(r => (r.press || r.canonicalPress || 'Unspecified') === press);
+      const topSubsystem = aggregateErrorEvents(nativePressRows, r => r.subsystem || 'Unspecified').sort((a, b) => b.events - a.events)[0];
+      const topError = aggregateErrorEvents(nativePressRows, r => (r.name !== 'Unspecified' ? r.name : r.alertTitle) || 'Unspecified').sort((a, b) => b.events - a.events)[0];
+      const recommendedAction = topSubsystem?.name
+        ? `Stabilize ${topSubsystem.name}${topError?.name ? ` and review ${topError.name}` : ''}.`
+        : 'Monitor current scope and investigate new recurring alerts.';
+      const row = {
+        press,
+        status: 'Stable',
+        events: metricRegistry.events.format(pressEvents),
+        eventsRaw: pressEvents,
+        downtime: metricRegistry.downtime.format(downtimeSeconds),
+        downtimeRaw: downtimeSeconds,
+        availability: metricRegistry.availability.format(availabilityRaw),
+        availabilityRaw,
+        mttr: metricRegistry.mttr.format(pressMttr),
+        mttrRaw: pressMttr,
+        mtbf: metricRegistry.mtbf.format(pressMtbf),
+        mtbfRaw: pressMtbf,
+        topSubsystem: topSubsystem?.name || 'N/A',
+        topError: topError?.name || 'N/A',
+        recommendedAction
+      };
+      row.status = machineSummaryStatus(row);
+      return row;
+    }).sort((a, b) => Number(b.downtimeRaw || 0) - Number(a.downtimeRaw || 0));
+    const allPressesSelected = selectedPresses.length === 0;
+    const visibleRows = allPressesSelected ? rows.slice(0, 5) : rows.filter(r => selectedPresses.includes(r.press));
+    return {
+      rows: visibleRows,
+      totalPresses: rows.length,
+      hiddenCount: allPressesSelected ? Math.max(0, rows.length - visibleRows.length) : 0,
+      allPressesSelected
+    };
+  }
+
+  function buildSummaryModel(currentDashboardScope = {}) {
+    const dashboardScope = currentDashboardScope.scopedSource ? currentDashboardScope : (STATE.dashboardScopeModel || getCurrentDashboardScopeModel());
+    const filters = dashboardScope.filters || currentFilterValues();
+    const scope = dashboardScope.scopedSource || {};
+    const kpis = dashboardScope.scopedKpis || scope.kpis || computeOperationalMetrics(scope);
+    const executiveSummary = dashboardScope.executiveSummary || buildExecutiveSummary(dashboardScope.scopedErrorRows || [], scope, kpis);
+    const generatedAt = new Date();
+    const selectedPresses = normalizeFilterSelection(filters.presses).filter(Boolean);
+    const selectedSubsystems = normalizeFilterSelection(filters.subsystems).filter(Boolean);
+    const selectedVersions = normalizeFilterSelection(filters.versions).filter(Boolean);
+    const machineSummary = buildPressMachineSummaries(scope, filters);
+    const downtimeTop = machineSummary.rows[0] || null;
+    const severity = executiveSummary?.status === 'Critical' ? 'Critical' : (executiveSummary?.status === 'Watch' ? 'Warning' : (executiveSummary?.status || 'Stable'));
+    const kpiItems = [
+      { key: 'events', label: 'Events', rawValue: kpis.totalEvents, value: metricRegistry.events.format(kpis.totalEvents), context: 'Current filtered error events' },
+      { key: 'downtime', label: 'Downtime', rawValue: kpis.totalDowntime, value: metricRegistry.downtime.format(kpis.totalDowntime), context: 'Availability downtime in scope' },
+      { key: 'availability', label: 'Availability', rawValue: kpis.availabilityPercent == null ? null : kpis.availabilityPercent / 100, value: metricRegistry.availability.format(kpis.availabilityPercent == null ? null : kpis.availabilityPercent / 100), context: 'Runtime / runtime plus downtime' },
+      { key: 'mttr', label: 'MTTR', rawValue: kpis.mttr, value: metricRegistry.mttr.format(kpis.mttr), context: 'Current recovery metric' },
+      { key: 'mtbf', label: 'MTBF', rawValue: kpis.mtbf, value: metricRegistry.mtbf.format(kpis.mtbf), context: 'Current reliability metric' },
+      { key: 'wasteRatio', label: 'Waste Ratio', rawValue: kpis.wasteRatio, value: metricRegistry.wasteRatio.format(kpis.wasteRatio), context: 'Waste / total printed volume' }
+    ];
+    if ((scope.volumeAgg || []).length) {
+      kpiItems.push({ key: 'volume', label: 'Volume', rawValue: kpis.totalPrintedFlats, value: metricRegistry.volume.format(kpis.totalPrintedFlats), context: 'Total printed flats' });
+    }
+    kpiItems.forEach(item => { item.status = kpiStatus(item.key, item.rawValue); });
+    const findings = [];
+    if (downtimeTop) findings.push({ title: `Downtime concentrated on ${downtimeTop.press}`, description: `${downtimeTop.press} has ${downtimeTop.downtime} downtime in the current scope.`, relatedPress: downtimeTop.press, relatedSubsystem: downtimeTop.topSubsystem, severity: downtimeTop.status });
+    if (executiveSummary?.topSubsystem) findings.push({ title: `Top subsystem: ${executiveSummary.topSubsystem.name}`, description: `${executiveSummary.topSubsystem.events.toLocaleString()} events are associated with this subsystem.`, relatedPress: executiveSummary.focusPress || null, relatedSubsystem: executiveSummary.topSubsystem.name, severity: severity === 'Critical' ? 'Critical' : 'Warning' });
+    if (executiveSummary?.topAlert) findings.push({ title: `Top recurring alert: ${executiveSummary.topAlert.name}`, description: `${executiveSummary.topAlert.events.toLocaleString()} events in the filtered data.`, relatedPress: executiveSummary.focusPress || null, relatedSubsystem: executiveSummary.pressTopSubsystem?.name || null, severity: 'Warning' });
+    if (!findings.length) findings.push({ title: 'No dominant issue detected', description: 'No recurring driver is available for the current filtered scope.', relatedPress: null, relatedSubsystem: null, severity: 'Stable' });
+    const recommendedActions = (executiveSummary?.actionCards || []).slice(0, 3).map(card => ({
+      title: card.what || card.title || 'Review current driver',
+      where: card.where || executiveSummary.focusPress || 'Current scope',
+      why: card.why || card.reason || 'Current filtered data indicates this is a priority.',
+      expectedImpact: card.impact || 'Expected impact: improve reliability and reduce operational loss.',
+      priority: severity === 'Critical' ? 'High' : (severity === 'Warning' ? 'Medium' : 'Normal')
+    }));
+    while (recommendedActions.length < 3 && machineSummary.rows[recommendedActions.length]) {
+      const m = machineSummary.rows[recommendedActions.length];
+      recommendedActions.push({ title: m.recommendedAction, where: m.press, why: `${m.press} contributes ${m.downtime} downtime.`, expectedImpact: 'Expected impact: reduce repeat stops and recover availability.', priority: m.status === 'Critical' ? 'High' : 'Medium' });
+    }
+    const warnings = [];
+    const sourceEvents = aggregateMetricFromScope('events', scope);
+    if (sourceEvents != null && hasSignificantDiff(sourceEvents, kpis.totalEvents, 0.00001)) warnings.push('Event KPI does not match scoped source aggregation.');
+    if (!(scope.filteredErrorEventsNative || []).length && !(scope.filteredAvailabilityRowsNative || []).length && !(scope.filteredVolumeRowsNative || []).length) warnings.push('No scoped source rows are available.');
+    const model = {
+      meta: {
+        title: 'Landa InsightPro+ Summary',
+        reportingPeriod: deriveReportingPeriodLabel(scope),
+        generatedAt: generatedAt.toLocaleString(),
+        generatedAtIso: generatedAt.toISOString(),
+        scopeLabel: summaryScopeLabel(filters),
+        selectedPresses,
+        selectedSubsystems,
+        selectedVersions,
+        dataValidationStatus: summaryDataValidationStatus(scope),
+        sourcesUsed: summarySourcesUsed(scope)
+      },
+      overallStatus: {
+        severity,
+        headline: severity === 'Critical' ? 'Immediate corrective ownership is required.' : (severity === 'Warning' ? 'Operational risk should be actively managed.' : 'Operations are stable in the current scope.'),
+        description: executiveSummary?.statusVerdict || 'Summary generated from the current filtered dashboard data.'
+      },
+      kpis: kpiItems,
+      findings: findings.slice(0, 3),
+      recommendedActions: recommendedActions.slice(0, 3),
+      machineSummaries: machineSummary.rows,
+      machineSummaryNote: machineSummary.hiddenCount > 0 ? `+${machineSummary.hiddenCount} more included` : '',
+      email: { subject: `Landa InsightPro+ Summary — ${deriveReportingPeriodLabel(scope)}` },
+      validation: {
+        valuesMatchDashboard: warnings.length === 0,
+        warnings,
+        note: 'This summary is generated from the current dashboard filters and validated source data.'
+      }
+    };
+    console.info('[summary-model]', {
+      scope: model.meta.scopeLabel,
+      kpiCount: model.kpis.length,
+      findingsCount: model.findings.length,
+      actionsCount: model.recommendedActions.length,
+      machineCount: model.machineSummaries.length,
+      dataValidationStatus: model.meta.dataValidationStatus
+    });
+    return model;
+  }
+
+  function renderSummaryMetaRows(model) {
+    const meta = model.meta || {};
     return [
-      { id: 'statusStrip', title: 'Status Strip', accent: () => '#1f8bff' },
-      { id: 'topSignals', title: 'Top Signals', accent: () => '#365f9f' },
-      { id: 'actions', title: 'Action Cards', accent: () => '#116e45' }
+      ['Reporting period', meta.reportingPeriod || 'Current validated dataset'],
+      ['Current scope', meta.scopeLabel || 'All filtered data'],
+      ['Generated', meta.generatedAt || 'N/A'],
+      ['Data validation', meta.dataValidationStatus || 'Validated source data'],
+      ['Sources used', (meta.sourcesUsed || []).join(' • ') || 'N/A']
     ];
   }
 
+  function renderSummaryEmailInner(model) {
+    const statusColor = model.overallStatus?.severity === 'Critical' ? '#b42318' : (model.overallStatus?.severity === 'Warning' ? '#b54708' : '#067647');
+    const metaRows = renderSummaryMetaRows(model).map(([k, v]) => `<tr><td style="padding:4px 10px 4px 0;color:#667085;font-weight:600;white-space:nowrap;">${esc(k)}</td><td style="padding:4px 0;color:#101828;">${esc(v)}</td></tr>`).join('');
+    const kpis = (model.kpis || []).map(kpi => `<td style="width:14.2%;padding:8px;border:1px solid #d0d5dd;border-radius:8px;background:#f8fafc;vertical-align:top;"><div style="font-size:11px;color:#667085;text-transform:uppercase;letter-spacing:.04em;">${esc(kpi.label)}</div><div style="font-size:17px;font-weight:700;color:#101828;margin-top:4px;">${esc(kpi.value)}</div><div style="font-size:11px;color:#667085;margin-top:3px;">${esc(kpi.context || '')}</div></td>`).join('');
+    const findings = (model.findings || []).slice(0, 3).map(f => `<li style="margin:0 0 8px;"><strong>${esc(f.title)}</strong> — ${esc(f.description)}</li>`).join('') || '<li>No findings available for this scope.</li>';
+    const actions = (model.recommendedActions || []).slice(0, 3).map(a => `<li style="margin:0 0 10px;"><strong>${esc(a.title)}</strong><br><span style="color:#475467;">Where: ${esc(a.where)} • Priority: ${esc(a.priority)}<br>Why: ${esc(a.why)}<br>${esc(a.expectedImpact)}</span></li>`).join('') || '<li>No recommended actions available.</li>';
+    const machines = (model.machineSummaries || []).map(m => `<tr><td style="padding:7px;border-bottom:1px solid #eaecf0;">${esc(m.press)}</td><td style="padding:7px;border-bottom:1px solid #eaecf0;">${esc(m.status)}</td><td style="padding:7px;border-bottom:1px solid #eaecf0;text-align:right;">${esc(m.events)}</td><td style="padding:7px;border-bottom:1px solid #eaecf0;text-align:right;">${esc(m.downtime)}</td><td style="padding:7px;border-bottom:1px solid #eaecf0;text-align:right;">${esc(m.availability)}</td><td style="padding:7px;border-bottom:1px solid #eaecf0;text-align:right;">${esc(m.mttr)}</td><td style="padding:7px;border-bottom:1px solid #eaecf0;text-align:right;">${esc(m.mtbf)}</td><td style="padding:7px;border-bottom:1px solid #eaecf0;">${esc(m.topSubsystem)}</td><td style="padding:7px;border-bottom:1px solid #eaecf0;">${esc(m.topError)}</td><td style="padding:7px;border-bottom:1px solid #eaecf0;">${esc(m.recommendedAction)}</td></tr>`).join('') || '<tr><td colspan="10" style="padding:7px;">No machine rows available.</td></tr>';
+    const warnings = (model.validation?.warnings || []).map(w => `<div style="color:#b42318;">Warning: ${esc(w)}</div>`).join('');
+    return `<div style="max-width:920px;margin:0 auto;background:#ffffff;border:1px solid #d0d5dd;border-radius:12px;padding:18px;font-family:Segoe UI,Arial,sans-serif;color:#101828;">
+      <h1 style="font-size:22px;margin:0 0 10px;">${esc(model.meta?.title || 'Landa InsightPro+ Summary')}</h1>
+      <table role="presentation" style="border-collapse:collapse;width:100%;font-size:13px;margin-bottom:14px;">${metaRows}</table>
+      <div style="border-left:4px solid ${statusColor};background:#f8fafc;padding:10px 12px;margin:0 0 14px;"><div style="font-weight:700;color:${statusColor};">${esc(model.overallStatus?.severity || 'Stable')}: ${esc(model.overallStatus?.headline || '')}</div><div style="font-size:13px;color:#475467;margin-top:3px;">${esc(model.overallStatus?.description || '')}</div></div>
+      <h2 style="font-size:16px;margin:16px 0 8px;">KPI Snapshot</h2><table role="presentation" style="border-collapse:separate;border-spacing:6px;width:100%;"><tr>${kpis}</tr></table>
+      <h2 style="font-size:16px;margin:16px 0 8px;">Top Findings</h2><ul style="padding-left:20px;margin:0;">${findings}</ul>
+      <h2 style="font-size:16px;margin:16px 0 8px;">Recommended Actions</h2><ol style="padding-left:20px;margin:0;">${actions}</ol>
+      <h2 style="font-size:16px;margin:16px 0 8px;">Machine Summary</h2><table style="border-collapse:collapse;width:100%;font-size:12px;"><thead><tr style="background:#f2f4f7;"><th style="text-align:left;padding:7px;">Press</th><th style="text-align:left;padding:7px;">Status</th><th style="text-align:right;padding:7px;">Events</th><th style="text-align:right;padding:7px;">Downtime</th><th style="text-align:right;padding:7px;">Availability</th><th style="text-align:right;padding:7px;">MTTR</th><th style="text-align:right;padding:7px;">MTBF</th><th style="text-align:left;padding:7px;">Top subsystem</th><th style="text-align:left;padding:7px;">Top error</th><th style="text-align:left;padding:7px;">Recommended action</th></tr></thead><tbody>${machines}</tbody></table>${model.machineSummaryNote ? `<div style="font-size:12px;color:#667085;margin-top:6px;">${esc(model.machineSummaryNote)}</div>` : ''}
+      <div style="font-size:12px;color:#475467;margin-top:14px;border-top:1px solid #eaecf0;padding-top:10px;">${esc(model.validation?.note || '')}${warnings}</div>
+    </div>`;
+  }
+
+  function renderSummaryEmailHTML(summaryModel) {
+    return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(summaryModel.email?.subject || 'Landa InsightPro+ Summary')}</title></head><body style="margin:0;padding:20px;background:#f4f7fb;">${renderSummaryEmailInner(summaryModel)}</body></html>`;
+  }
+
+  function renderSummaryEmailText(summaryModel) {
+    const lines = [];
+    lines.push(summaryModel.meta?.title || 'Landa InsightPro+ Summary');
+    renderSummaryMetaRows(summaryModel).forEach(([k, v]) => lines.push(`${k}: ${v}`));
+    lines.push('', `Overall Status: ${summaryModel.overallStatus?.severity || 'Stable'} - ${summaryModel.overallStatus?.headline || ''}`, summaryModel.overallStatus?.description || '');
+    lines.push('', 'KPI Snapshot');
+    (summaryModel.kpis || []).forEach(k => lines.push(`- ${k.label}: ${k.value}${k.context ? ` (${k.context})` : ''}`));
+    lines.push('', 'Top Findings');
+    (summaryModel.findings || []).slice(0, 3).forEach(f => lines.push(`- ${f.title}: ${f.description}`));
+    lines.push('', 'Recommended Actions');
+    (summaryModel.recommendedActions || []).slice(0, 3).forEach((a, idx) => lines.push(`${idx + 1}. ${a.title} | Where: ${a.where} | Priority: ${a.priority} | Why: ${a.why} | ${a.expectedImpact}`));
+    lines.push('', 'Machine Summary');
+    (summaryModel.machineSummaries || []).forEach(m => lines.push(`- ${m.press}: ${m.status}; Events ${m.events}; Downtime ${m.downtime}; Availability ${m.availability}; MTTR ${m.mttr}; MTBF ${m.mtbf}; Top subsystem ${m.topSubsystem}; Top error ${m.topError}; Action: ${m.recommendedAction}`));
+    if (summaryModel.machineSummaryNote) lines.push(summaryModel.machineSummaryNote);
+    lines.push('', summaryModel.validation?.note || 'This summary is generated from the current dashboard filters and validated source data.');
+    (summaryModel.validation?.warnings || []).forEach(w => lines.push(`Warning: ${w}`));
+    return lines.join('\n');
+  }
+
   function buildExecutiveEmailPayload(model) {
-    const structure = defineExecutiveSummarySections();
     return {
-      html: renderSummaryEmailHtml(model, structure),
-      previewHtml: renderSummaryPreview(model, structure),
-      text: renderSummaryPlainText(model, structure),
-      generatedAtIso: model.generatedAtIso,
+      html: renderSummaryEmailHTML(model),
+      previewHtml: renderSummaryEmailHTML(model),
+      text: renderSummaryEmailText(model),
+      generatedAtIso: model.meta?.generatedAtIso,
     };
   }
 
   function renderSummaryPlainText(model) {
-    const lines = ['Command Center Summary', `Reporting period: ${model.reportingPeriodLabel || 'Current validated dataset'}`, `Dashboard version: ${model.appVersion || APP_VERSION}`, model.statusStrip, '', 'Top Signals'];
-    (model.topSignals || []).forEach(card => lines.push(`- ${card.title}: ${card.detail}`));
-    lines.push('', 'Action Cards');
-    (model.actionCards || []).forEach(card => lines.push(`- ${card.what} | ${card.where} | ${card.why} | ${card.impact}`));
-    return lines.join('\n');
+    return renderSummaryEmailText(model);
   }
 
-  function deriveReportingPeriodLabel(scope = {}) {
-    const days = [];
-    (scope.filteredErrorEventsNative || []).forEach(r => { const d = toDayBucket(r?.day || r?.startTime || r?.timestamp); if (d) days.push(d); });
-    (scope.filteredAvailabilityRowsNative || []).forEach(r => { const d = toDayBucket(r?.day || r?.date); if (d) days.push(d); });
-    (scope.filteredVolumeRowsNative || []).forEach(r => { const d = toDayBucket(r?.day || r?.date || r?.startTime); if (d) days.push(d); });
-    if (!days.length) return 'Current validated dataset';
-    days.sort((a,b)=>a.localeCompare(b));
-    return `${days[0]} to ${days[days.length-1]}`;
+  function renderSummaryModal(model, host) {
+    const kpiCards = (model.kpis || []).map(kpi => `<article class="summary-kpi-card"><div class="label">${esc(kpi.label)}</div><div class="value">${esc(kpi.value)}</div><div class="micro">${esc(kpi.context || '')}</div></article>`).join('');
+    const findings = (model.findings || []).slice(0, 3).map(f => `<li><strong>${esc(f.title)}</strong><br><span class="micro">${esc(f.description)}</span></li>`).join('') || '<li class="micro">No findings available for this scope.</li>';
+    const actions = (model.recommendedActions || []).slice(0, 3).map(a => `<li><strong>${esc(a.title)}</strong><br><span class="micro">Where: ${esc(a.where)} • Priority: ${esc(a.priority)}<br>Why: ${esc(a.why)}<br>${esc(a.expectedImpact)}</span></li>`).join('') || '<li class="micro">No recommended actions available.</li>';
+    const machines = (model.machineSummaries || []).map(m => `<tr><td>${esc(m.press)}</td><td>${esc(m.status)}</td><td>${esc(m.events)}</td><td>${esc(m.downtime)}</td><td>${esc(m.availability)}</td><td>${esc(m.mttr)}</td><td>${esc(m.mtbf)}</td><td>${esc(m.topSubsystem)}</td><td>${esc(m.topError)}</td><td>${esc(m.recommendedAction)}</td></tr>`).join('') || '<tr><td colspan="10">No machine rows available.</td></tr>';
+    const warnings = (model.validation?.warnings || []).map(w => `<div class="micro" style="color:#ffb4a8;">Warning: ${esc(w)}</div>`).join('');
+    host.innerHTML = `
+      <section class="summary-section"><div class="summary-section-head" style="background:#1f8bff;">Header</div><div class="summary-section-body"><h3 style="margin:0 0 8px;">${esc(model.meta?.title || 'Landa InsightPro+ Summary')}</h3><div class="micro">${renderSummaryMetaRows(model).map(([k,v]) => `<strong>${esc(k)}:</strong> ${esc(v)}`).join('<br>')}</div></div></section>
+      <section class="summary-section"><div class="summary-section-head" style="background:#365f9f;">Overall Status</div><div class="summary-section-body"><div class="value" style="font-size:1.1rem;font-weight:800;">${esc(model.overallStatus?.severity || 'Stable')} — ${esc(model.overallStatus?.headline || '')}</div><div class="micro" style="margin-top:6px;">${esc(model.overallStatus?.description || '')}</div></div></section>
+      <section class="summary-section"><div class="summary-section-head" style="background:#116e45;">KPI Snapshot</div><div class="summary-section-body"><div class="summary-kpi-grid">${kpiCards}</div></div></section>
+      <section class="summary-section"><div class="summary-section-head" style="background:#596579;">Top Findings</div><div class="summary-section-body"><ul style="margin:0;padding-left:18px;display:grid;gap:8px;">${findings}</ul></div></section>
+      <section class="summary-section"><div class="summary-section-head" style="background:#596579;">Recommended Actions</div><div class="summary-section-body"><ol style="margin:0;padding-left:18px;display:grid;gap:8px;">${actions}</ol></div></section>
+      <section class="summary-section"><div class="summary-section-head" style="background:#596579;">Machine Summary</div><div class="summary-section-body"><div style="overflow:auto;"><table><thead><tr><th>Press</th><th>Status</th><th>Events</th><th>Downtime</th><th>Availability</th><th>MTTR</th><th>MTBF</th><th>Top subsystem</th><th>Top error</th><th>Recommended action</th></tr></thead><tbody>${machines}</tbody></table></div>${model.machineSummaryNote ? `<div class="micro" style="margin-top:8px;">${esc(model.machineSummaryNote)}</div>` : ''}</div></section>
+      <section class="summary-section"><div class="summary-section-head" style="background:#1f8bff;">Email-ready Summary</div><div class="summary-section-body"><div class="micro" style="margin-bottom:8px;">This preview is generated by the same email renderer used for Copy Summary and Open in Outlook fallback.</div><iframe title="Email-ready summary" style="width:100%;height:360px;border:0;background:#fff;border-radius:8px;" srcdoc="${esc(renderSummaryEmailHTML(model))}"></iframe><div class="micro" style="margin-top:8px;">${esc(model.validation?.note || '')}</div>${warnings}</div></section>`;
   }
 
-  function buildExecutiveSummaryModel(summary, kpis, rows, sourceScope) {
-    const scope = sourceScope || {};
-    const byPressDowntime = aggregateDurationRows((scope.availabilityAgg || []).map(r => ({ subsystem: r.canonicalPress || 'Unspecified', durationSeconds: totalDowntimeFromAvailabilityRow(r) })), r => r.subsystem).sort((a,b)=>b.downtime-a.downtime);
-    const topPress = byPressDowntime[0] || { name: 'Unspecified', downtime: 0 };
-    const totalDowntime = byPressDowntime.reduce((acc, row) => acc + Number(row.downtime || 0), 0);
-    const topShare = totalDowntime > 0 ? (topPress.downtime / totalDowntime) : 0;
-    const wasteRatio = Number(kpis?.wasteRatio || 0);
-    const availabilityRatio = Number(kpis?.availabilityPercent || 0) / 100;
-    const status = topShare > 0.2 ? 'Critical' : wasteRatio > 0.05 ? 'Warning' : 'Stable';
-    const drivingPresses = byPressDowntime.filter(r => totalDowntime > 0 && (r.downtime / totalDowntime) >= 0.1).length || (topPress.name === 'Unspecified' ? 0 : 1);
-    const worstWaste = aggregateMetricRows(scope.volumeAgg || [], r => r.canonicalPress || 'Unspecified', r => { const total = Number(r.totalPrintedSheets || ((r.goodPrintedSheets || 0) + (r.wastePrintedSheets || 0))); return total > 0 ? Number(r.wastePrintedSheets || 0) / total : 0; }).sort((a,b)=>b.value-a.value)[0] || { name: 'Unspecified', value: 0 };
-    const reliabilityInterpretation = (kpis?.mttr || 0) < 900 && (kpis?.mtbf || 0) < 4*3600 ? 'Frequent short stops' : 'Rare but long failures';
-    return {
-      generatedAtLabel: new Date().toLocaleString(),
-      reportingPeriodLabel: deriveReportingPeriodLabel(scope),
-      appVersion: APP_VERSION,
-      sourceCounts: { errors: (scope.errorsAgg || []).length, availability: (scope.availabilityAgg || []).length, volume: (scope.volumeAgg || []).length },
-      statusStrip: `[${status}] • ${drivingPresses} presses driving ${(topShare * 100).toFixed(1)}% of downtime • Waste ${(wasteRatio * 100).toFixed(2)}% • Availability ${(availabilityRatio * 100).toFixed(1)}%`,
-      topSignals: [
-        { title: 'Downtime Driver', detail: `${topPress.name} drives ${(topShare * 100).toFixed(1)}% of downtime (${formatDuration(topPress.downtime)}).` },
-        { title: 'Efficiency (Waste)', detail: `Waste ratio ${(wasteRatio * 100).toFixed(2)}%; worst press ${worstWaste.name} at ${(Number(worstWaste.value || 0) * 100).toFixed(2)}%.` },
-        { title: 'Reliability', detail: `MTTR ${metricRegistry.mttr.format(kpis?.mttr)} • MTBF ${metricRegistry.mtbf.format(kpis?.mtbf)} • ${reliabilityInterpretation}.` }
-      ],
-      actionCards: [
-        { what: `Reduce recurring stops in ${topPress.name}`, where: topPress.name, why: `${(topShare * 100).toFixed(1)}% of total downtime originates here.`, impact: 'Expected impact: reduce total downtime by ~10–15%.' },
-        { what: `Cut waste on ${worstWaste.name}`, where: worstWaste.name, why: `Waste intensity ${(Number(worstWaste.value || 0) * 100).toFixed(2)}% exceeds fleet average ${(wasteRatio * 100).toFixed(2)}%.`, impact: 'Expected impact: lower waste cost and improve throughput.' },
-        { what: 'Improve reliability pattern', where: 'Fleet', why: reliabilityInterpretation, impact: 'Expected impact: increase availability and reduce incident load.' }
-      ]
-    };
+  function renderSummaryPreview(model) {
+    return renderSummaryEmailHTML(model);
   }
 
-  function renderSummaryModal(model, host, structure = defineExecutiveSummarySections()) {
-    host.innerHTML = renderSummaryHtmlByStructure(model, structure, 'dashboard');
+  function renderSummaryEmailHtml(model) {
+    return renderSummaryEmailHTML(model);
   }
 
-  function renderSummaryPreview(model, structure = defineExecutiveSummarySections()) {
-    return renderSummaryEmailHtml(model, structure);
-  }
-
-  function renderSummaryEmailHtml(model, structure = defineExecutiveSummarySections()) {
-    return `<!doctype html><html><head><meta charset="utf-8"><title>Landa InsightPro+ Summary</title></head><body style="margin:0;padding:20px;background:#f4f7fb;font-family:Segoe UI,Arial,sans-serif;color:#1d2430;">${renderSummaryHtmlByStructure(model, structure, 'email')}</body></html>`;
-  }
-
-  function renderSummaryHtmlByStructure(model, structure, channel) {
-    const cards = (model.topSignals || []).slice(0, 3).map(card => `<article class="summary-stat span-4"><div class="label">${esc(card.title)}</div><div class="value" style="font-size:.9rem;line-height:1.35;">${esc(card.detail)}</div></article>`).join('');
-    const actions = (model.actionCards || []).slice(0,3).map(card => `<article class="summary-stat"><div class="label">WHAT</div><div class="value" style="font-size:.88rem;">${esc(card.what)}</div><div class="micro">WHERE: ${esc(card.where)}<br>WHY: ${esc(card.why)}<br>EXPECTED IMPACT: ${esc(card.impact)}</div></article>`).join('');
-    return `<section class="summary-section"><div class="summary-section-head" style="background:#1f8bff;">Command Center Summary</div><div class="micro" style="padding:8px 12px 0;">Reporting period: ${esc(model.reportingPeriodLabel || 'Current validated dataset')} • Dashboard version: ${esc(model.appVersion || APP_VERSION)}</div><div class="summary-section-body"><div class="summary-stat"><div class="value">${esc(model.statusStrip)}</div></div><div class="summary-grid" style="margin-top:10px;">${cards}</div><div style="margin-top:10px;display:grid;gap:8px;">${actions}</div></div></section>`;
-  }
 
 
 
@@ -9461,6 +9660,7 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     const ensureSummaryModel = () => {
       try {
         const {
+          filters,
           scopedMergedRows,
           scopedErrorRows,
           scopedSource,
@@ -9477,7 +9677,7 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
         STATE.lastSourceScope = scopedSource;
         STATE.kpis = scopedKpis;
         STATE.merged.summary = executiveSummary;
-        const model = buildExecutiveSummaryModel(executiveSummary, scopedKpis, scopedErrorRows, scopedSource);
+        const model = buildSummaryModel({ filters, scopedMergedRows, scopedErrorRows, scopedSource, scopedKpis, executiveSummary, hasScopedData });
         return { state: 'ok', model };
       } catch (e) {
         console.error('[summary-model-error]', e);
@@ -9507,7 +9707,7 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       }
       const model = summaryResult.model;
       try {
-        summaryScopeMeta.textContent = `Reporting period: ${model.reportingPeriodLabel} • Generated on: ${model.generatedAtLabel} • Source rows (errors/availability/volume): ${model.sourceCounts.errors}/${model.sourceCounts.availability}/${model.sourceCounts.volume}`;
+        summaryScopeMeta.textContent = `Reporting period: ${model.meta.reportingPeriod} • Generated: ${model.meta.generatedAt} • Scope: ${model.meta.scopeLabel}`;
         renderSummaryModal(model, summaryContent);
         summaryModal.classList.add('show');
         summaryPreview.classList.add('hidden');
@@ -9537,7 +9737,7 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       return text;
     };
     const tryOpenOutlookCompose = (payload) => {
-      const subject = `Landa InsightPro+ Summary — ${payload.model.reportingPeriodLabel}`;
+      const subject = payload.model.email?.subject || 'Landa InsightPro+ Summary';
       const body = toMailtoBody(payload);
       const outlookUrl = `https://outlook.office.com/mail/deeplink/compose?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
       const webWindow = window.open(outlookUrl, '_blank', 'noopener,noreferrer');
@@ -9561,10 +9761,10 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
               'text/html': new Blob([payload.html], { type: 'text/html' }),
             })
           ]);
-          setStatus('Executive email summary copied to clipboard with HTML + plain text formats.', 'ok');
+          setStatus('Summary copied', 'ok');
         } else {
           await navigator.clipboard.writeText(payload.text);
-          setStatus('HTML clipboard API unavailable here; copied plain-text fallback summary.', 'warning');
+          setStatus('Copied plain-text fallback', 'warning');
         }
       }
       catch { setStatus('Clipboard copy failed in this browser context.', 'warning'); }
@@ -9581,14 +9781,14 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       }
       const compose = tryOpenOutlookCompose(payload);
       if (compose.success && compose.channel === 'outlook-web') {
-        setStatus('Opened Outlook Web compose with the scoped summary. Full HTML + text summary copied to clipboard for rich-body paste if needed.', 'ok');
+        setStatus('Opened Outlook with plain-text fallback. Use Copy Summary for formatted content.', 'ok');
         return;
       }
       if (compose.success && compose.channel === 'mailto') {
-        setStatus('Opened your default mail client compose window (mailto fallback). Full HTML + text summary copied to clipboard for rich-body paste if needed.', 'warning');
+        setStatus('Opened mailto plain-text fallback. Use Copy Summary for formatted content.', 'warning');
         return;
       }
-      setStatus('Could not open Outlook compose automatically (popup/protocol blocked). Use Preview or Copy Email Summary; no file was downloaded.', 'warning');
+      setStatus('Could not open Outlook compose automatically (popup/protocol blocked). Use Preview or Copy Summary; no file was downloaded.', 'warning');
     });
     summaryPreviewBtnEl.addEventListener('click', () => {
       const payload = getExecutiveEmailPayload();
